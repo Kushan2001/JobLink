@@ -47,8 +47,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kushan.joblink.R
 import com.kushan.joblink.data.model.UserRole
+import com.kushan.joblink.data.repository.AuthError
+import com.kushan.joblink.ui.components.AuthErrorMessage
 import com.kushan.joblink.ui.components.PasswordVisibilityButton
 import com.kushan.joblink.ui.theme.JobLinkSpacing
+import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.ConfirmPasswordValidationError
 import com.kushan.joblink.viewmodel.FullNameValidationError
 import com.kushan.joblink.viewmodel.RegisterUiState
@@ -58,22 +61,47 @@ import com.kushan.joblink.viewmodel.RegistrationPasswordValidationError
 
 @Composable
 fun RegisterScreen(
+    authViewModel: AuthViewModel,
     onLogin: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RegisterViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
 
     RegisterContent(
         uiState = uiState,
-        onFullNameChanged = viewModel::onFullNameChanged,
-        onEmailChanged = viewModel::onEmailChanged,
-        onPasswordChanged = viewModel::onPasswordChanged,
-        onConfirmPasswordChanged = viewModel::onConfirmPasswordChanged,
+        isLoading = authUiState.isLoading,
+        authError = authUiState.error,
+        onFullNameChanged = { fullName ->
+            authViewModel.clearError()
+            viewModel.onFullNameChanged(fullName)
+        },
+        onEmailChanged = { email ->
+            authViewModel.clearError()
+            viewModel.onEmailChanged(email)
+        },
+        onPasswordChanged = { password ->
+            authViewModel.clearError()
+            viewModel.onPasswordChanged(password)
+        },
+        onConfirmPasswordChanged = { confirmPassword ->
+            authViewModel.clearError()
+            viewModel.onConfirmPasswordChanged(confirmPassword)
+        },
         onPasswordVisibilityChanged = viewModel::onPasswordVisibilityChanged,
         onConfirmPasswordVisibilityChanged = viewModel::onConfirmPasswordVisibilityChanged,
-        onRegister = { viewModel.validateRegistrationInput() },
+        onRegister = {
+            if (viewModel.validateRegistrationInput()) {
+                authViewModel.register(
+                    fullName = uiState.fullName.trim(),
+                    email = uiState.email.trim(),
+                    password = uiState.password,
+                    role = uiState.role,
+                )
+            }
+        },
         onLogin = onLogin,
         onBack = onBack,
         modifier = modifier,
@@ -83,6 +111,8 @@ fun RegisterScreen(
 @Composable
 private fun RegisterContent(
     uiState: RegisterUiState,
+    isLoading: Boolean,
+    authError: AuthError?,
     onFullNameChanged: (String) -> Unit,
     onEmailChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
@@ -142,7 +172,7 @@ private fun RegisterContent(
         ) {
             TextButton(
                 onClick = onBack,
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
             ) {
                 Text(text = stringResource(R.string.back))
             }
@@ -158,6 +188,10 @@ private fun RegisterContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            if (authError != null) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                AuthErrorMessage(error = authError)
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -178,7 +212,7 @@ private fun RegisterContent(
                 value = uiState.fullName,
                 onValueChange = onFullNameChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.full_name)) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Person, contentDescription = null)
@@ -198,7 +232,7 @@ private fun RegisterContent(
                 value = uiState.email,
                 onValueChange = onEmailChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Email, contentDescription = null)
@@ -221,7 +255,7 @@ private fun RegisterContent(
                 value = uiState.password,
                 onValueChange = onPasswordChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Lock, contentDescription = null)
@@ -231,7 +265,7 @@ private fun RegisterContent(
                         passwordVisible = uiState.isPasswordVisible,
                         onClick = onPasswordVisibilityChanged,
                         contentDescription = passwordToggleDescription,
-                        enabled = !uiState.isLoading,
+                        enabled = !isLoading,
                     )
                 },
                 supportingText = {
@@ -260,7 +294,7 @@ private fun RegisterContent(
                 value = uiState.confirmPassword,
                 onValueChange = onConfirmPasswordChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.confirm_password)) },
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Lock, contentDescription = null)
@@ -270,7 +304,7 @@ private fun RegisterContent(
                         passwordVisible = uiState.isConfirmPasswordVisible,
                         onClick = onConfirmPasswordVisibilityChanged,
                         contentDescription = confirmPasswordToggleDescription,
-                        enabled = !uiState.isLoading,
+                        enabled = !isLoading,
                     )
                 },
                 supportingText = confirmPasswordErrorText?.let { message ->
@@ -300,12 +334,12 @@ private fun RegisterContent(
                     focusManager.clearFocus()
                     onRegister()
                 },
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp),
             ) {
-                if (uiState.isLoading) {
+                if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -329,7 +363,7 @@ private fun RegisterContent(
                 )
                 TextButton(
                     onClick = onLogin,
-                    enabled = !uiState.isLoading,
+                    enabled = !isLoading,
                 ) {
                     Text(text = stringResource(R.string.login))
                 }

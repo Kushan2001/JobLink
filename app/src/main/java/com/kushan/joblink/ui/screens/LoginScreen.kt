@@ -44,8 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kushan.joblink.R
+import com.kushan.joblink.data.repository.AuthError
+import com.kushan.joblink.ui.components.AuthErrorMessage
 import com.kushan.joblink.ui.components.PasswordVisibilityButton
 import com.kushan.joblink.ui.theme.JobLinkSpacing
+import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.EmailValidationError
 import com.kushan.joblink.viewmodel.LoginUiState
 import com.kushan.joblink.viewmodel.LoginViewModel
@@ -53,6 +56,7 @@ import com.kushan.joblink.viewmodel.PasswordValidationError
 
 @Composable
 fun LoginScreen(
+    authViewModel: AuthViewModel,
     onForgotPassword: () -> Unit,
     onRegister: () -> Unit,
     onBack: () -> Unit,
@@ -60,13 +64,29 @@ fun LoginScreen(
     viewModel: LoginViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
 
     LoginContent(
         uiState = uiState,
-        onEmailChanged = viewModel::onEmailChanged,
-        onPasswordChanged = viewModel::onPasswordChanged,
+        isLoading = authUiState.isLoading,
+        authError = authUiState.error,
+        onEmailChanged = { email ->
+            authViewModel.clearError()
+            viewModel.onEmailChanged(email)
+        },
+        onPasswordChanged = { password ->
+            authViewModel.clearError()
+            viewModel.onPasswordChanged(password)
+        },
         onPasswordVisibilityChanged = viewModel::onPasswordVisibilityChanged,
-        onLogin = { viewModel.validateLoginInput() },
+        onLogin = {
+            if (viewModel.validateLoginInput()) {
+                authViewModel.login(
+                    email = uiState.email.trim(),
+                    password = uiState.password,
+                )
+            }
+        },
         onForgotPassword = onForgotPassword,
         onRegister = onRegister,
         onBack = onBack,
@@ -77,6 +97,8 @@ fun LoginScreen(
 @Composable
 private fun LoginContent(
     uiState: LoginUiState,
+    isLoading: Boolean,
+    authError: AuthError?,
     onEmailChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
     onPasswordVisibilityChanged: () -> Unit,
@@ -113,7 +135,10 @@ private fun LoginContent(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = JobLinkSpacing.large, vertical = JobLinkSpacing.medium),
         ) {
-            TextButton(onClick = onBack) {
+            TextButton(
+                onClick = onBack,
+                enabled = !isLoading,
+            ) {
                 Text(text = stringResource(R.string.back))
             }
             Spacer(modifier = Modifier.height(JobLinkSpacing.large))
@@ -128,12 +153,16 @@ private fun LoginContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            if (authError != null) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                AuthErrorMessage(error = authError)
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.extraLarge))
             OutlinedTextField(
                 value = uiState.email,
                 onValueChange = onEmailChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.email)) },
                 leadingIcon = {
                     Icon(
@@ -159,7 +188,7 @@ private fun LoginContent(
                 value = uiState.password,
                 onValueChange = onPasswordChanged,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 label = { Text(text = stringResource(R.string.password)) },
                 leadingIcon = {
                     Icon(
@@ -172,7 +201,7 @@ private fun LoginContent(
                         passwordVisible = uiState.isPasswordVisible,
                         onClick = onPasswordVisibilityChanged,
                         contentDescription = passwordToggleDescription,
-                        enabled = !uiState.isLoading,
+                        enabled = !isLoading,
                     )
                 },
                 supportingText = passwordErrorText?.let { message ->
@@ -198,7 +227,7 @@ private fun LoginContent(
             )
             TextButton(
                 onClick = onForgotPassword,
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 modifier = Modifier.align(Alignment.End),
             ) {
                 Text(text = stringResource(R.string.forgot_password))
@@ -209,12 +238,12 @@ private fun LoginContent(
                     focusManager.clearFocus()
                     onLogin()
                 },
-                enabled = !uiState.isLoading,
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp),
             ) {
-                if (uiState.isLoading) {
+                if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -238,7 +267,7 @@ private fun LoginContent(
                 )
                 TextButton(
                     onClick = onRegister,
-                    enabled = !uiState.isLoading,
+                    enabled = !isLoading,
                 ) {
                     Text(text = stringResource(R.string.create_account))
                 }
