@@ -12,9 +12,11 @@ import androidx.navigation.compose.composable
 import com.kushan.joblink.data.model.UserRole
 import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
+import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
 import com.kushan.joblink.ui.screens.LoginScreen
+import com.kushan.joblink.ui.screens.PostJobScreen
 import com.kushan.joblink.ui.screens.JobSeekerProfileScreen
 import com.kushan.joblink.ui.screens.RegisterScreen
 import com.kushan.joblink.ui.screens.RoleSelectionScreen
@@ -22,6 +24,7 @@ import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
+import com.kushan.joblink.viewmodel.PostJobViewModel
 
 @Composable
 fun JobLinkNavHost(
@@ -29,6 +32,7 @@ fun JobLinkNavHost(
     authViewModel: AuthViewModel,
     employerProfileRepository: EmployerProfileRepository,
     jobSeekerProfileRepository: JobSeekerProfileRepository,
+    jobRepository: JobRepository,
     modifier: Modifier = Modifier,
 ) {
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
@@ -134,6 +138,7 @@ fun JobLinkNavHost(
                 )
                 EmployerProfileScreen(
                     viewModel = profileViewModel,
+                    onPostJob = { navController.navigate(PostJobDestination) },
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(WelcomeDestination) {
@@ -142,6 +147,40 @@ fun JobLinkNavHost(
                         }
                     },
                 )
+            }
+        }
+
+        composable<PostJobDestination> {
+            when (authUiState.currentUser?.role) {
+                UserRole.EMPLOYER -> {
+                    val postJobViewModel: PostJobViewModel = viewModel(
+                        factory = PostJobViewModel.Factory(jobRepository),
+                    )
+                    PostJobScreen(
+                        viewModel = postJobViewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
+                UserRole.JOB_SEEKER -> {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(JobSeekerHomeDestination) {
+                            popUpTo<PostJobDestination> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                    AuthenticationLoadingScreen()
+                }
+
+                null -> {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(WelcomeDestination) {
+                            popUpTo<PostJobDestination> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                    AuthenticationLoadingScreen()
+                }
             }
         }
     }

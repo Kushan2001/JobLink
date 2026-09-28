@@ -37,6 +37,7 @@ fun JobLinkApp() {
                     authViewModel = authViewModel,
                     employerProfileRepository = application.employerProfileRepository,
                     jobSeekerProfileRepository = application.jobSeekerProfileRepository,
+                    jobRepository = application.jobRepository,
                 )
             }
         }

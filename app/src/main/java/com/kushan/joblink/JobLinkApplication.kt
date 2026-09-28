@@ -6,6 +6,8 @@ import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.FirebaseAuthRepository
 import com.kushan.joblink.data.repository.FirebaseEmployerProfileRepository
 import com.kushan.joblink.data.repository.FirebaseJobSeekerProfileRepository
+import com.kushan.joblink.data.repository.FirebaseJobRepository
+import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 
 class JobLinkApplication : Application() {
@@ -16,4 +18,5 @@ class JobLinkApplication : Application() {
     val jobSeekerProfileRepository: JobSeekerProfileRepository by lazy {
         FirebaseJobSeekerProfileRepository()
     }
+    val jobRepository: JobRepository by lazy { FirebaseJobRepository() }
 }
