@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import com.kushan.joblink.ui.screens.LoginScreen
 import com.kushan.joblink.ui.screens.RegisterScreen
 import com.kushan.joblink.ui.screens.RoleSelectionScreen
@@ -29,21 +30,24 @@ fun JobLinkNavHost(
 
         composable<RoleSelectionDestination> {
             RoleSelectionScreen(
-                onLogin = { navController.navigate(LoginDestination) },
-                onRegister = { navController.navigate(RegisterDestination) },
+                onContinue = { role ->
+                    navController.navigate(RegisterDestination(role = role))
+                },
                 onBack = { navController.popBackStack() },
             )
         }
 
         composable<LoginDestination> {
             LoginScreen(
-                onRegister = { navController.navigate(RegisterDestination) },
+                onRegister = { navController.navigate(RegisterDestination()) },
                 onBack = { navController.popBackStack() },
             )
         }
 
-        composable<RegisterDestination> {
+        composable<RegisterDestination> { backStackEntry ->
+            val destination = backStackEntry.toRoute<RegisterDestination>()
             RegisterScreen(
+                selectedRole = destination.role,
                 onLogin = { navController.navigate(LoginDestination) },
                 onBack = { navController.popBackStack() },
             )
