@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "563913052472",
+    "project_id": "joblink-56f68",
+    "storage_bucket": "joblink-56f68.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563913052472:android:58e34c1e6ef91e5fd971cd",
+        "android_client_info": {
+          "package_name": "com.kushan.joblink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDn3PdTYQTPrv6iWlor1zIB9vVajoO7U2Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
