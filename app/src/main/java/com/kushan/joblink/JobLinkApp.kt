@@ -35,6 +35,7 @@ fun JobLinkApp() {
                 JobLinkNavHost(
                     navController = navController,
                     authViewModel = authViewModel,
+                    jobSeekerProfileRepository = application.jobSeekerProfileRepository,
                 )
             }
         }
