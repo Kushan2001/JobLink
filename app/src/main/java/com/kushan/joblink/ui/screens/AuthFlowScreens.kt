@@ -21,22 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.kushan.joblink.R
 
 @Composable
-fun WelcomeScreen(
-    onContinue: () -> Unit,
-    onLogin: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    DestinationScreen(
-        title = R.string.welcome_title,
-        primaryActionLabel = R.string.get_started,
-        onPrimaryAction = onContinue,
-        secondaryActionLabel = R.string.login,
-        onSecondaryAction = onLogin,
-        modifier = modifier,
-    )
-}
-
-@Composable
 fun RoleSelectionScreen(
     onLogin: () -> Unit,
     onRegister: () -> Unit,
