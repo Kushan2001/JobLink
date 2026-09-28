@@ -19,24 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kushan.joblink.R
-
-@Composable
-fun RoleSelectionScreen(
-    onLogin: () -> Unit,
-    onRegister: () -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    DestinationScreen(
-        title = R.string.role_selection_title,
-        primaryActionLabel = R.string.register,
-        onPrimaryAction = onRegister,
-        secondaryActionLabel = R.string.login,
-        onSecondaryAction = onLogin,
-        onBack = onBack,
-        modifier = modifier,
-    )
-}
+import com.kushan.joblink.data.model.UserRole
 
 @Composable
 fun LoginScreen(
@@ -55,12 +38,21 @@ fun LoginScreen(
 
 @Composable
 fun RegisterScreen(
+    selectedRole: UserRole?,
     onLogin: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val roleContext = selectedRole?.let { role ->
+        stringResource(
+            R.string.registering_as,
+            stringResource(role.labelResource()),
+        )
+    }
+
     DestinationScreen(
         title = R.string.register_title,
+        supportingText = roleContext,
         primaryActionLabel = R.string.login_instead,
         onPrimaryAction = onLogin,
         onBack = onBack,
@@ -74,6 +66,7 @@ private fun DestinationScreen(
     @StringRes primaryActionLabel: Int,
     onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier,
+    supportingText: String? = null,
     @StringRes secondaryActionLabel: Int? = null,
     onSecondaryAction: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
@@ -91,6 +84,15 @@ private fun DestinationScreen(
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
         )
+        if (supportingText != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = supportingText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onPrimaryAction) {
             Text(text = stringResource(primaryActionLabel))
@@ -108,4 +110,10 @@ private fun DestinationScreen(
             }
         }
     }
+}
+
+@StringRes
+private fun UserRole.labelResource(): Int = when (this) {
+    UserRole.JOB_SEEKER -> R.string.job_seeker
+    UserRole.EMPLOYER -> R.string.employer
 }

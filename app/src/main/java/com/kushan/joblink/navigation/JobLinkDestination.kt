@@ -1,5 +1,6 @@
 package com.kushan.joblink.navigation
 
+import com.kushan.joblink.data.model.UserRole
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -12,4 +13,4 @@ data object RoleSelectionDestination
 data object LoginDestination
 
 @Serializable
-data object RegisterDestination
+data class RegisterDestination(val role: UserRole? = null)
