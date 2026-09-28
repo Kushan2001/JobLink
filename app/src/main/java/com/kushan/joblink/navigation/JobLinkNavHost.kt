@@ -5,22 +5,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.kushan.joblink.data.model.UserRole
+import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.ui.screens.AuthenticatedHomeScreen
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.LoginScreen
+import com.kushan.joblink.ui.screens.JobSeekerProfileScreen
 import com.kushan.joblink.ui.screens.RegisterScreen
 import com.kushan.joblink.ui.screens.RoleSelectionScreen
 import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
+import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
 
 @Composable
 fun JobLinkNavHost(
     navController: NavHostController,
     authViewModel: AuthViewModel,
+    jobSeekerProfileRepository: JobSeekerProfileRepository,
     modifier: Modifier = Modifier,
 ) {
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
@@ -100,8 +105,11 @@ fun JobLinkNavHost(
             if (profile == null) {
                 AuthenticationLoadingScreen()
             } else {
-                AuthenticatedHomeScreen(
-                    profile = profile,
+                val profileViewModel: JobSeekerProfileViewModel = viewModel(
+                    factory = JobSeekerProfileViewModel.Factory(jobSeekerProfileRepository),
+                )
+                JobSeekerProfileScreen(
+                    viewModel = profileViewModel,
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(WelcomeDestination) {
