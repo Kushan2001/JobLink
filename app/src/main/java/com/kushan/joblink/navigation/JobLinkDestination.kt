@@ -14,3 +14,9 @@ data object LoginDestination
 
 @Serializable
 data class RegisterDestination(val role: UserRole)
+
+@Serializable
+data object JobSeekerHomeDestination
+
+@Serializable
+data object EmployerHomeDestination

@@ -13,7 +13,6 @@ data class LoginUiState(
     val isPasswordVisible: Boolean = false,
     val emailError: EmailValidationError? = null,
     val passwordError: PasswordValidationError? = null,
-    val isLoading: Boolean = false,
 )
 
 enum class EmailValidationError {

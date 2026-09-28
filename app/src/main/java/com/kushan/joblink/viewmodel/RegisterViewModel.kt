@@ -25,7 +25,6 @@ data class RegisterUiState(
     val emailError: RegistrationEmailValidationError? = null,
     val passwordError: RegistrationPasswordValidationError? = null,
     val confirmPasswordError: ConfirmPasswordValidationError? = null,
-    val isLoading: Boolean = false,
 )
 
 enum class FullNameValidationError {
