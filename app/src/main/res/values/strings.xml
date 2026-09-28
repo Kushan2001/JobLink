@@ -16,14 +16,22 @@
     <string name="email_required">Email is required.</string>
     <string name="email_invalid">Enter a valid email address.</string>
     <string name="password_required">Password is required.</string>
+    <string name="password_too_short">Password must be at least 8 characters.</string>
     <string name="show_password">Show password</string>
     <string name="hide_password">Hide password</string>
     <string name="forgot_password">Forgot password?</string>
     <string name="create_account_prompt">New to JobLink?</string>
     <string name="create_account">Create account</string>
     <string name="register_title">Create your JobLink account</string>
+    <string name="register_subtitle">Add your details to start building professional connections.</string>
+    <string name="full_name">Full name</string>
+    <string name="confirm_password">Confirm password</string>
+    <string name="full_name_required">Full name is required.</string>
+    <string name="confirm_password_required">Please confirm your password.</string>
+    <string name="passwords_do_not_match">Passwords do not match.</string>
+    <string name="password_requirement">Use at least 8 characters.</string>
+    <string name="existing_account_prompt">Already have an account?</string>
     <string name="get_started">Get Started</string>
     <string name="login">Log in</string>
-    <string name="login_instead">Already registered? Log in</string>
     <string name="back">Back</string>
 </resources>

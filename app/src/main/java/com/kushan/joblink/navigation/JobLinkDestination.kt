@@ -13,4 +13,4 @@ data object RoleSelectionDestination
 data object LoginDestination
 
 @Serializable
-data class RegisterDestination(val role: UserRole? = null)
+data class RegisterDestination(val role: UserRole)
