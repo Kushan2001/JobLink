@@ -20,3 +20,6 @@ data object JobSeekerHomeDestination
 
 @Serializable
 data object EmployerHomeDestination
+
+@Serializable
+data object PostJobDestination

@@ -49,6 +49,7 @@ import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 @Composable
 fun EmployerProfileScreen(
     viewModel: EmployerProfileViewModel,
+    onPostJob: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -82,6 +83,7 @@ fun EmployerProfileScreen(
             profile = savedProfile,
             saveSucceeded = uiState.saveSucceeded,
             onEdit = viewModel::startEditing,
+            onPostJob = onPostJob,
             onLogout = onLogout,
             modifier = modifier,
         )
@@ -93,6 +95,7 @@ private fun CompanyProfileViewContent(
     profile: CompanyProfile,
     saveSucceeded: Boolean,
     onEdit: () -> Unit,
+    onPostJob: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -142,6 +145,13 @@ private fun CompanyProfileViewContent(
         )
         Spacer(modifier = Modifier.height(JobLinkSpacing.large))
         Button(
+            onClick = onPostJob,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = stringResource(R.string.post_job))
+        }
+        Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+        OutlinedButton(
             onClick = onEdit,
             modifier = Modifier.fillMaxWidth(),
         ) {
