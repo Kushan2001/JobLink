@@ -10,10 +10,20 @@
     <string name="continue_label">Continue</string>
     <string name="registering_as">Registering as %1$s</string>
     <string name="login_title">Log in to JobLink</string>
+    <string name="login_subtitle">Welcome back. Enter your details to continue.</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="email_required">Email is required.</string>
+    <string name="email_invalid">Enter a valid email address.</string>
+    <string name="password_required">Password is required.</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="create_account_prompt">New to JobLink?</string>
+    <string name="create_account">Create account</string>
     <string name="register_title">Create your JobLink account</string>
     <string name="get_started">Get Started</string>
     <string name="login">Log in</string>
     <string name="login_instead">Already registered? Log in</string>
-    <string name="register_instead">Need an account? Register</string>
     <string name="back">Back</string>
 </resources>

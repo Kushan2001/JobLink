@@ -22,21 +22,6 @@ import com.kushan.joblink.R
 import com.kushan.joblink.data.model.UserRole
 
 @Composable
-fun LoginScreen(
-    onRegister: () -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    DestinationScreen(
-        title = R.string.login_title,
-        primaryActionLabel = R.string.register_instead,
-        onPrimaryAction = onRegister,
-        onBack = onBack,
-        modifier = modifier,
-    )
-}
-
-@Composable
 fun RegisterScreen(
     selectedRole: UserRole?,
     onLogin: () -> Unit,

@@ -39,6 +39,7 @@ fun JobLinkNavHost(
 
         composable<LoginDestination> {
             LoginScreen(
+                onForgotPassword = {},
                 onRegister = { navController.navigate(RegisterDestination()) },
                 onBack = { navController.popBackStack() },
             )
