@@ -20,11 +20,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,60 +46,85 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kushan.joblink.R
+import com.kushan.joblink.data.model.UserRole
 import com.kushan.joblink.ui.components.PasswordVisibilityButton
 import com.kushan.joblink.ui.theme.JobLinkSpacing
-import com.kushan.joblink.viewmodel.EmailValidationError
-import com.kushan.joblink.viewmodel.LoginUiState
-import com.kushan.joblink.viewmodel.LoginViewModel
-import com.kushan.joblink.viewmodel.PasswordValidationError
+import com.kushan.joblink.viewmodel.ConfirmPasswordValidationError
+import com.kushan.joblink.viewmodel.FullNameValidationError
+import com.kushan.joblink.viewmodel.RegisterUiState
+import com.kushan.joblink.viewmodel.RegisterViewModel
+import com.kushan.joblink.viewmodel.RegistrationEmailValidationError
+import com.kushan.joblink.viewmodel.RegistrationPasswordValidationError
 
 @Composable
-fun LoginScreen(
-    onForgotPassword: () -> Unit,
-    onRegister: () -> Unit,
+fun RegisterScreen(
+    onLogin: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LoginViewModel = viewModel(),
+    viewModel: RegisterViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LoginContent(
+    RegisterContent(
         uiState = uiState,
+        onFullNameChanged = viewModel::onFullNameChanged,
         onEmailChanged = viewModel::onEmailChanged,
         onPasswordChanged = viewModel::onPasswordChanged,
+        onConfirmPasswordChanged = viewModel::onConfirmPasswordChanged,
         onPasswordVisibilityChanged = viewModel::onPasswordVisibilityChanged,
-        onLogin = { viewModel.validateLoginInput() },
-        onForgotPassword = onForgotPassword,
-        onRegister = onRegister,
+        onConfirmPasswordVisibilityChanged = viewModel::onConfirmPasswordVisibilityChanged,
+        onRegister = { viewModel.validateRegistrationInput() },
+        onLogin = onLogin,
         onBack = onBack,
         modifier = modifier,
     )
 }
 
 @Composable
-private fun LoginContent(
-    uiState: LoginUiState,
+private fun RegisterContent(
+    uiState: RegisterUiState,
+    onFullNameChanged: (String) -> Unit,
     onEmailChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
+    onConfirmPasswordChanged: (String) -> Unit,
     onPasswordVisibilityChanged: () -> Unit,
-    onLogin: () -> Unit,
-    onForgotPassword: () -> Unit,
+    onConfirmPasswordVisibilityChanged: () -> Unit,
     onRegister: () -> Unit,
+    onLogin: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
+    val fullNameErrorText = when (uiState.fullNameError) {
+        FullNameValidationError.REQUIRED -> stringResource(R.string.full_name_required)
+        null -> null
+    }
     val emailErrorText = when (uiState.emailError) {
-        EmailValidationError.REQUIRED -> stringResource(R.string.email_required)
-        EmailValidationError.INVALID_FORMAT -> stringResource(R.string.email_invalid)
+        RegistrationEmailValidationError.REQUIRED -> stringResource(R.string.email_required)
+        RegistrationEmailValidationError.INVALID_FORMAT -> stringResource(R.string.email_invalid)
         null -> null
     }
     val passwordErrorText = when (uiState.passwordError) {
-        PasswordValidationError.REQUIRED -> stringResource(R.string.password_required)
+        RegistrationPasswordValidationError.REQUIRED -> stringResource(R.string.password_required)
+        RegistrationPasswordValidationError.TOO_SHORT -> stringResource(R.string.password_too_short)
+        null -> null
+    }
+    val confirmPasswordErrorText = when (uiState.confirmPasswordError) {
+        ConfirmPasswordValidationError.REQUIRED -> stringResource(R.string.confirm_password_required)
+        ConfirmPasswordValidationError.DOES_NOT_MATCH -> stringResource(R.string.passwords_do_not_match)
         null -> null
     }
     val passwordToggleDescription = stringResource(
         if (uiState.isPasswordVisible) R.string.hide_password else R.string.show_password,
+    )
+    val confirmPasswordToggleDescription = stringResource(
+        if (uiState.isConfirmPasswordVisible) R.string.hide_password else R.string.show_password,
+    )
+    val roleLabel = stringResource(
+        when (uiState.role) {
+            UserRole.JOB_SEEKER -> R.string.job_seeker
+            UserRole.EMPLOYER -> R.string.employer
+        },
     )
 
     Box(
@@ -113,22 +140,60 @@ private fun LoginContent(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = JobLinkSpacing.large, vertical = JobLinkSpacing.medium),
         ) {
-            TextButton(onClick = onBack) {
+            TextButton(
+                onClick = onBack,
+                enabled = !uiState.isLoading,
+            ) {
                 Text(text = stringResource(R.string.back))
             }
             Spacer(modifier = Modifier.height(JobLinkSpacing.large))
             Text(
-                text = stringResource(R.string.login_title),
+                text = stringResource(R.string.register_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(modifier = Modifier.height(JobLinkSpacing.small))
             Text(
-                text = stringResource(R.string.login_subtitle),
+                text = stringResource(R.string.register_subtitle),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text(
+                    text = stringResource(R.string.registering_as, roleLabel),
+                    modifier = Modifier.padding(
+                        horizontal = JobLinkSpacing.medium,
+                        vertical = JobLinkSpacing.small,
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.extraLarge))
+            OutlinedTextField(
+                value = uiState.fullName,
+                onValueChange = onFullNameChanged,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isLoading,
+                label = { Text(text = stringResource(R.string.full_name)) },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Person, contentDescription = null)
+                },
+                supportingText = fullNameErrorText?.let { message ->
+                    { Text(text = message) }
+                },
+                isError = fullNameErrorText != null,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                ),
+            )
+            Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
             OutlinedTextField(
                 value = uiState.email,
                 onValueChange = onEmailChanged,
@@ -136,10 +201,7 @@ private fun LoginContent(
                 enabled = !uiState.isLoading,
                 label = { Text(text = stringResource(R.string.email)) },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = null,
-                    )
+                    Icon(imageVector = Icons.Default.Email, contentDescription = null)
                 },
                 supportingText = emailErrorText?.let { message ->
                     { Text(text = message) }
@@ -162,10 +224,7 @@ private fun LoginContent(
                 enabled = !uiState.isLoading,
                 label = { Text(text = stringResource(R.string.password)) },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                    )
+                    Icon(imageVector = Icons.Default.Lock, contentDescription = null)
                 },
                 trailingIcon = {
                     PasswordVisibilityButton(
@@ -175,12 +234,51 @@ private fun LoginContent(
                         enabled = !uiState.isLoading,
                     )
                 },
-                supportingText = passwordErrorText?.let { message ->
-                    { Text(text = message) }
+                supportingText = {
+                    Text(
+                        text = passwordErrorText
+                            ?: stringResource(R.string.password_requirement),
+                    )
                 },
                 isError = passwordErrorText != null,
                 singleLine = true,
                 visualTransformation = if (uiState.isPasswordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                ),
+            )
+            Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+            OutlinedTextField(
+                value = uiState.confirmPassword,
+                onValueChange = onConfirmPasswordChanged,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isLoading,
+                label = { Text(text = stringResource(R.string.confirm_password)) },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Lock, contentDescription = null)
+                },
+                trailingIcon = {
+                    PasswordVisibilityButton(
+                        passwordVisible = uiState.isConfirmPasswordVisible,
+                        onClick = onConfirmPasswordVisibilityChanged,
+                        contentDescription = confirmPasswordToggleDescription,
+                        enabled = !uiState.isLoading,
+                    )
+                },
+                supportingText = confirmPasswordErrorText?.let { message ->
+                    { Text(text = message) }
+                },
+                isError = confirmPasswordErrorText != null,
+                singleLine = true,
+                visualTransformation = if (uiState.isConfirmPasswordVisible) {
                     VisualTransformation.None
                 } else {
                     PasswordVisualTransformation()
@@ -192,22 +290,15 @@ private fun LoginContent(
                 keyboardActions = KeyboardActions(
                     onDone = {
                         focusManager.clearFocus()
-                        onLogin()
+                        onRegister()
                     },
                 ),
             )
-            TextButton(
-                onClick = onForgotPassword,
-                enabled = !uiState.isLoading,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(text = stringResource(R.string.forgot_password))
-            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.large))
             Button(
                 onClick = {
                     focusManager.clearFocus()
-                    onLogin()
+                    onRegister()
                 },
                 enabled = !uiState.isLoading,
                 modifier = Modifier
@@ -221,7 +312,7 @@ private fun LoginContent(
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text(text = stringResource(R.string.login))
+                    Text(text = stringResource(R.string.create_account))
                 }
             }
             Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
@@ -231,16 +322,16 @@ private fun LoginContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.create_account_prompt),
+                    text = stringResource(R.string.existing_account_prompt),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                 )
                 TextButton(
-                    onClick = onRegister,
+                    onClick = onLogin,
                     enabled = !uiState.isLoading,
                 ) {
-                    Text(text = stringResource(R.string.create_account))
+                    Text(text = stringResource(R.string.login))
                 }
             }
         }
