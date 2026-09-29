@@ -9,6 +9,7 @@ enum class JobError {
     COMPANY_PROFILE_REQUIRED,
     PERMISSION_DENIED,
     NETWORK,
+    JOB_NOT_FOUND,
     UNKNOWN,
 }
 
@@ -19,4 +20,8 @@ sealed interface JobResult<out T> {
 
 interface JobRepository {
     suspend fun postJob(job: Job): JobResult<Job>
+
+    suspend fun getActiveJobs(): JobResult<List<Job>>
+
+    suspend fun getJob(jobId: String): JobResult<Job>
 }

@@ -5,6 +5,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.kushan.joblink.data.model.Job
 import com.kushan.joblink.data.model.UserRole
 import kotlinx.coroutines.tasks.await
@@ -13,6 +14,39 @@ class FirebaseJobRepository(
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) : JobRepository {
+
+    override suspend fun getActiveJobs(): JobResult<List<Job>> = try {
+        val documents = firestore.collection(JOBS_COLLECTION)
+            .whereEqualTo(FIELD_ACTIVE, true)
+            .orderBy(FIELD_CREATED_AT, Query.Direction.DESCENDING)
+            .limit(JOB_FEED_LIMIT)
+            .get()
+            .await()
+        JobResult.Success(
+            documents.documents.map { document ->
+                document.toObject(Job::class.java)?.copy(id = document.id)
+                    ?: throw IllegalStateException("Unable to read job ${document.id}")
+            },
+        )
+    } catch (exception: Exception) {
+        JobResult.Failure(exception.toJobError())
+    }
+
+    override suspend fun getJob(jobId: String): JobResult<Job> {
+        if (jobId.isBlank()) return JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        return try {
+            val document = firestore.collection(JOBS_COLLECTION).document(jobId).get().await()
+            val job = document.toObject(Job::class.java)?.copy(id = document.id)
+            if (job == null || !job.active) {
+                JobResult.Failure(JobError.JOB_NOT_FOUND)
+            } else {
+                JobResult.Success(job)
+            }
+        } catch (exception: Exception) {
+            JobResult.Failure(exception.toJobError())
+        }
+    }
 
     override suspend fun postJob(job: Job): JobResult<Job> {
         val uid = firebaseAuth.currentUser?.uid
@@ -90,6 +124,7 @@ class FirebaseJobRepository(
         const val USERS_COLLECTION = "users"
         const val COMPANIES_COLLECTION = "companies"
         const val JOBS_COLLECTION = "jobs"
+        const val JOB_FEED_LIMIT = 50L
         const val FIELD_ROLE = "role"
         const val FIELD_ID = "id"
         const val FIELD_EMPLOYER_ID = "employerId"

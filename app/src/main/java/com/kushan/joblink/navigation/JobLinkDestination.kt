@@ -19,6 +19,12 @@ data class RegisterDestination(val role: UserRole)
 data object JobSeekerHomeDestination
 
 @Serializable
+data object JobSeekerProfileDestination
+
+@Serializable
+data class JobDetailsDestination(val jobId: String)
+
+@Serializable
 data object EmployerHomeDestination
 
 @Serializable
