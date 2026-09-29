@@ -160,5 +160,11 @@ class PostJobViewModelTest {
             submittedJob = job
             return postHandler(job)
         }
+
+        override suspend fun getActiveJobs(): JobResult<List<Job>> =
+            JobResult.Success(emptyList())
+
+        override suspend fun getJob(jobId: String): JobResult<Job> =
+            JobResult.Failure(JobError.JOB_NOT_FOUND)
     }
 }

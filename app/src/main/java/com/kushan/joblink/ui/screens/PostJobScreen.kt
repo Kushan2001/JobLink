@@ -478,6 +478,7 @@ private fun JobPostingErrorMessage(
         JobError.COMPANY_PROFILE_REQUIRED -> R.string.job_error_company_profile_required
         JobError.PERMISSION_DENIED -> R.string.job_error_permission_denied
         JobError.NETWORK -> R.string.job_error_network
+        JobError.JOB_NOT_FOUND -> R.string.job_error_unknown
         JobError.UNKNOWN -> R.string.job_error_unknown
     }
     Surface(

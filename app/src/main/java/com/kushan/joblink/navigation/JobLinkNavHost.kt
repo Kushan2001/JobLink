@@ -9,12 +9,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import com.kushan.joblink.data.model.UserRole
 import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
+import com.kushan.joblink.ui.screens.HomeScreen
+import com.kushan.joblink.ui.screens.JobDetailsScreen
 import com.kushan.joblink.ui.screens.LoginScreen
 import com.kushan.joblink.ui.screens.PostJobScreen
 import com.kushan.joblink.ui.screens.JobSeekerProfileScreen
@@ -23,6 +26,8 @@ import com.kushan.joblink.ui.screens.RoleSelectionScreen
 import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
+import com.kushan.joblink.viewmodel.HomeViewModel
+import com.kushan.joblink.viewmodel.JobDetailsViewModel
 import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
 import com.kushan.joblink.viewmodel.PostJobViewModel
 
@@ -109,9 +114,33 @@ fun JobLinkNavHost(
 
         composable<JobSeekerHomeDestination> {
             val profile = authUiState.currentUser
-            if (profile == null) {
-                AuthenticationLoadingScreen()
-            } else {
+            when (profile?.role) {
+                UserRole.JOB_SEEKER -> {
+                    val homeViewModel: HomeViewModel = viewModel(
+                        factory = HomeViewModel.Factory(jobRepository),
+                    )
+                    HomeScreen(
+                        viewModel = homeViewModel,
+                        onJobClick = { jobId ->
+                            navController.navigate(JobDetailsDestination(jobId))
+                        },
+                        onProfile = { navController.navigate(JobSeekerProfileDestination) },
+                        onLogout = {
+                            authViewModel.logout()
+                            navController.navigate(WelcomeDestination) {
+                                popUpTo<JobSeekerHomeDestination> { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                    )
+                }
+
+                else -> AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<JobSeekerProfileDestination> {
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
                 val profileViewModel: JobSeekerProfileViewModel = viewModel(
                     factory = JobSeekerProfileViewModel.Factory(jobSeekerProfileRepository),
                 )
@@ -125,6 +154,26 @@ fun JobLinkNavHost(
                         }
                     },
                 )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<JobDetailsDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
+                val destination = backStackEntry.toRoute<JobDetailsDestination>()
+                val detailsViewModel: JobDetailsViewModel = viewModel(
+                    factory = JobDetailsViewModel.Factory(
+                        jobId = destination.jobId,
+                        jobRepository = jobRepository,
+                    ),
+                )
+                JobDetailsScreen(
+                    viewModel = detailsViewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
             }
         }
 
