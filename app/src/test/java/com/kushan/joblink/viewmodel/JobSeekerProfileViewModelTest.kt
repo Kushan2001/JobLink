@@ -1,6 +1,8 @@
 package com.kushan.joblink.viewmodel
 
 import com.kushan.joblink.MainDispatcherRule
+import com.kushan.joblink.data.model.CvMetadata
+import com.kushan.joblink.data.model.CvUploadFile
 import com.kushan.joblink.data.model.JobSeekerProfile
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.ProfileError
@@ -107,6 +109,80 @@ class JobSeekerProfileViewModelTest {
         assertEquals(ProfileError.NETWORK, viewModel.uiState.value.error)
     }
 
+    @Test
+    fun invalidCvSelectionShowsFileNameAndDoesNotUpload() = runTest {
+        val repository = FakeProfileRepository(
+            loadResult = ProfileResult.Success(completeProfile()),
+        )
+        val viewModel = JobSeekerProfileViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onCvFileSelected(
+            CvUploadFile(
+                uri = "content://documents/resume.docx",
+                fileName = "resume.docx",
+                contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        )
+        viewModel.uploadSelectedCv()
+        advanceUntilIdle()
+
+        assertEquals("resume.docx", viewModel.uiState.value.selectedCvFile?.fileName)
+        assertEquals(ProfileError.INVALID_CV_FILE, viewModel.uiState.value.cvUploadError)
+        assertEquals(0, repository.uploadCalls)
+    }
+
+    @Test
+    fun successfulCvUploadReportsProgressAndUpdatesProfileMetadata() = runTest {
+        val repository = FakeProfileRepository(
+            loadResult = ProfileResult.Success(completeProfile()),
+        )
+        val cvMetadata = CvMetadata(
+            fileName = "Kushan-CV.pdf",
+            storagePath = "users/job-seeker-id/cv/current.pdf",
+            sizeBytes = 1_024L,
+        )
+        repository.uploadHandler = { _, onProgress ->
+            onProgress(0.45f)
+            ProfileResult.Success(cvMetadata)
+        }
+        val viewModel = JobSeekerProfileViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onCvFileSelected(validCvFile())
+        viewModel.uploadSelectedCv()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.uploadCalls)
+        assertEquals(cvMetadata, viewModel.uiState.value.savedProfile?.cv)
+        assertEquals(1f, viewModel.uiState.value.cvUploadProgress)
+        assertTrue(viewModel.uiState.value.cvUploadSucceeded)
+        assertEquals(null, viewModel.uiState.value.selectedCvFile)
+    }
+
+    @Test
+    fun cvUploadFailureKeepsSelectionAndExposesError() = runTest {
+        val repository = FakeProfileRepository(
+            loadResult = ProfileResult.Success(completeProfile()),
+        ).apply {
+            uploadHandler = { _, onProgress ->
+                onProgress(0.2f)
+                ProfileResult.Failure(ProfileError.NETWORK)
+            }
+        }
+        val viewModel = JobSeekerProfileViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onCvFileSelected(validCvFile())
+        viewModel.uploadSelectedCv()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUploadingCv)
+        assertEquals(ProfileError.NETWORK, viewModel.uiState.value.cvUploadError)
+        assertEquals("Kushan-CV.pdf", viewModel.uiState.value.selectedCvFile?.fileName)
+        assertEquals(0.2f, viewModel.uiState.value.cvUploadProgress)
+    }
+
     private class FakeProfileRepository(
         private val loadResult: ProfileResult<JobSeekerProfile>,
     ) : JobSeekerProfileRepository {
@@ -114,6 +190,18 @@ class JobSeekerProfileViewModelTest {
         var savedProfile: JobSeekerProfile? = null
         var saveHandler: (JobSeekerProfile) -> ProfileResult<JobSeekerProfile> = {
             ProfileResult.Success(it)
+        }
+        var uploadCalls = 0
+        var uploadHandler: (
+            CvUploadFile,
+            (Float) -> Unit,
+        ) -> ProfileResult<CvMetadata> = { file, _ ->
+            ProfileResult.Success(
+                CvMetadata(
+                    fileName = file.fileName,
+                    storagePath = "users/job-seeker-id/cv/current.pdf",
+                ),
+            )
         }
 
         override suspend fun getProfile(): ProfileResult<JobSeekerProfile> = loadResult
@@ -125,7 +213,21 @@ class JobSeekerProfileViewModelTest {
             savedProfile = profile
             return saveHandler(profile)
         }
+
+        override suspend fun uploadCv(
+            file: CvUploadFile,
+            onProgress: (Float) -> Unit,
+        ): ProfileResult<CvMetadata> {
+            uploadCalls += 1
+            return uploadHandler(file, onProgress)
+        }
     }
+
+    private fun validCvFile() = CvUploadFile(
+        uri = "content://documents/Kushan-CV.pdf",
+        fileName = "Kushan-CV.pdf",
+        contentType = "application/pdf",
+    )
 
     private fun completeProfile() = JobSeekerProfile(
         uid = "job-seeker-id",

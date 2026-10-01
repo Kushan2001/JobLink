@@ -1,5 +1,10 @@
 package com.kushan.joblink.ui.screens
 
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -39,12 +46,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kushan.joblink.R
+import com.kushan.joblink.data.model.CvUploadFile
 import com.kushan.joblink.data.model.JobSeekerProfile
+import com.kushan.joblink.data.model.PDF_CONTENT_TYPE
 import com.kushan.joblink.data.repository.ProfileError
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.JobSeekerProfileUiState
 import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
 import com.kushan.joblink.viewmodel.ProfileValidationError
+import kotlin.math.roundToInt
 
 @Composable
 fun JobSeekerProfileScreen(
@@ -54,6 +64,10 @@ fun JobSeekerProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val savedProfile = uiState.savedProfile
+    val contentResolver = LocalContext.current.contentResolver
+    val cvPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.onCvFileSelected(contentResolver.toCvUploadFile(it)) }
+    }
 
     when {
         uiState.isLoading -> ProfileLoadingContent(modifier = modifier)
@@ -81,9 +95,10 @@ fun JobSeekerProfileScreen(
         )
 
         else -> ProfileViewContent(
-            profile = savedProfile,
-            saveSucceeded = uiState.saveSucceeded,
+            uiState = uiState,
             onEdit = viewModel::startEditing,
+            onSelectCv = { cvPicker.launch(arrayOf(PDF_CONTENT_TYPE)) },
+            onUploadCv = viewModel::uploadSelectedCv,
             onLogout = onLogout,
             modifier = modifier,
         )
@@ -92,12 +107,14 @@ fun JobSeekerProfileScreen(
 
 @Composable
 private fun ProfileViewContent(
-    profile: JobSeekerProfile,
-    saveSucceeded: Boolean,
+    uiState: JobSeekerProfileUiState,
     onEdit: () -> Unit,
+    onSelectCv: () -> Unit,
+    onUploadCv: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val profile = requireNotNull(uiState.savedProfile)
     ProfilePage(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -109,12 +126,15 @@ private fun ProfileViewContent(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            TextButton(onClick = onLogout) {
+            TextButton(
+                onClick = onLogout,
+                enabled = !uiState.isUploadingCv,
+            ) {
                 Text(text = stringResource(R.string.logout))
             }
         }
 
-        if (saveSucceeded) {
+        if (uiState.saveSucceeded) {
             Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
             Surface(
                 modifier = Modifier
@@ -145,11 +165,18 @@ private fun ProfileViewContent(
         Spacer(modifier = Modifier.height(JobLinkSpacing.large))
         Button(
             onClick = onEdit,
+            enabled = !uiState.isUploadingCv,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(text = stringResource(R.string.edit_profile))
         }
         Spacer(modifier = Modifier.height(JobLinkSpacing.extraLarge))
+
+        CvUploadSection(
+            uiState = uiState,
+            onSelectCv = onSelectCv,
+            onUploadCv = onUploadCv,
+        )
 
         ProfileSection(
             title = R.string.profile_contact,
@@ -173,6 +200,142 @@ private fun ProfileViewContent(
             value = profile.preferredJobTypes.joinToString(", ").valueOrNotProvided(),
         )
     }
+}
+
+@Composable
+private fun CvUploadSection(
+    uiState: JobSeekerProfileUiState,
+    onSelectCv: () -> Unit,
+    onUploadCv: () -> Unit,
+) {
+    val profile = requireNotNull(uiState.savedProfile)
+    val selectedFile = uiState.selectedCvFile
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Column(modifier = Modifier.padding(JobLinkSpacing.large)) {
+            Text(
+                text = stringResource(R.string.cv_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(JobLinkSpacing.extraSmall))
+            Text(
+                text = stringResource(R.string.cv_description),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+            Text(
+                text = stringResource(R.string.current_cv),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                text = profile.cv?.fileName ?: stringResource(R.string.no_cv_uploaded),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            selectedFile?.let { file ->
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                Text(
+                    text = stringResource(R.string.selected_cv),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = file.fileName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            uiState.cvUploadError?.let { error ->
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                ProfileErrorMessage(error = error)
+            }
+
+            if (uiState.cvUploadSucceeded) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Text(
+                        text = stringResource(R.string.cv_upload_succeeded),
+                        modifier = Modifier.padding(JobLinkSpacing.medium),
+                    )
+                }
+            }
+
+            if (uiState.isUploadingCv) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+                LinearProgressIndicator(
+                    progress = { uiState.cvUploadProgress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(JobLinkSpacing.extraSmall))
+                Text(
+                    text = stringResource(
+                        R.string.cv_upload_progress,
+                        (uiState.cvUploadProgress * 100).roundToInt(),
+                    ),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+            OutlinedButton(
+                onClick = onSelectCv,
+                enabled = !uiState.isUploadingCv,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Text(
+                    text = stringResource(
+                        if (profile.cv == null) R.string.select_cv else R.string.select_replacement_cv,
+                    ),
+                )
+            }
+            if (selectedFile != null) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+                Button(
+                    onClick = onUploadCv,
+                    enabled = !uiState.isUploadingCv && selectedFile.isPdf,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    if (uiState.isUploadingCv) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(
+                                if (profile.cv == null) {
+                                    R.string.upload_cv
+                                } else {
+                                    R.string.replace_cv
+                                },
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
 }
 
 @Composable
@@ -502,8 +665,35 @@ private fun ProfileError.messageResource(): Int = when (this) {
     ProfileError.PERMISSION_DENIED -> R.string.profile_error_permission_denied
     ProfileError.NETWORK -> R.string.profile_error_network
     ProfileError.UNKNOWN -> R.string.profile_error_unknown
+    ProfileError.INVALID_CV_FILE -> R.string.cv_error_invalid_file
+    ProfileError.CV_FILE_UNAVAILABLE -> R.string.cv_error_file_unavailable
+    ProfileError.CV_UPLOAD_FAILED -> R.string.cv_error_upload_failed
 }
 
 @Composable
 private fun String.valueOrNotProvided(): String =
     ifBlank { stringResource(R.string.not_provided) }
+
+private fun ContentResolver.toCvUploadFile(uri: Uri): CvUploadFile {
+    val displayName = runCatching {
+        query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameColumn >= 0 && cursor.moveToFirst()) cursor.getString(nameColumn) else null
+        }
+    }.getOrNull()
+    val fallbackName = uri.lastPathSegment
+        ?.substringAfterLast('/')
+        ?.takeIf(String::isNotBlank)
+        ?: "selected_document"
+    return CvUploadFile(
+        uri = uri.toString(),
+        fileName = displayName?.takeIf(String::isNotBlank) ?: fallbackName,
+        contentType = getType(uri),
+    )
+}

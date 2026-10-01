@@ -1,17 +1,27 @@
 package com.kushan.joblink.data.repository
 
+import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageMetadata
+import com.kushan.joblink.data.model.CvMetadata
+import com.kushan.joblink.data.model.CvUploadFile
 import com.kushan.joblink.data.model.JobSeekerProfile
+import com.kushan.joblink.data.model.PDF_CONTENT_TYPE
 import com.kushan.joblink.data.model.UserRole
+import java.io.FileNotFoundException
 import kotlinx.coroutines.tasks.await
 
 class FirebaseJobSeekerProfileRepository(
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val storage: FirebaseStorage = FirebaseStorage.getInstance(),
 ) : JobSeekerProfileRepository {
 
     override suspend fun getProfile(): ProfileResult<JobSeekerProfile> {
@@ -53,6 +63,58 @@ class FirebaseJobSeekerProfileRepository(
         }
     }
 
+    override suspend fun uploadCv(
+        file: CvUploadFile,
+        onProgress: (Float) -> Unit,
+    ): ProfileResult<CvMetadata> {
+        val uid = firebaseAuth.currentUser?.uid
+            ?: return ProfileResult.Failure(ProfileError.NOT_AUTHENTICATED)
+        if (!file.isPdf) return ProfileResult.Failure(ProfileError.INVALID_CV_FILE)
+
+        return try {
+            val profileDocument = userDocument(uid).get().await()
+            val profileError = profileDocument.jobSeekerAccountError()
+            if (profileError != null) return ProfileResult.Failure(profileError)
+
+            val storagePath = "users/$uid/cv/current.pdf"
+            val storageReference = storage.reference.child(storagePath)
+            val storageMetadata = StorageMetadata.Builder()
+                .setContentType(PDF_CONTENT_TYPE)
+                .build()
+            val uploadTask = storageReference.putFile(Uri.parse(file.uri), storageMetadata)
+            uploadTask.addOnProgressListener { snapshot ->
+                val totalBytes = snapshot.totalByteCount
+                if (totalBytes > 0L) {
+                    onProgress(
+                        (snapshot.bytesTransferred.toFloat() / totalBytes.toFloat())
+                            .coerceIn(0f, 1f),
+                    )
+                }
+            }
+            val uploadSnapshot = uploadTask.await()
+            val cvMetadata = CvMetadata(
+                fileName = file.fileName.trim(),
+                storagePath = storagePath,
+                contentType = PDF_CONTENT_TYPE,
+                sizeBytes = uploadSnapshot.totalByteCount,
+            )
+            userDocument(uid).update(
+                FIELD_CV,
+                mapOf(
+                    FIELD_CV_FILE_NAME to cvMetadata.fileName,
+                    FIELD_CV_STORAGE_PATH to cvMetadata.storagePath,
+                    FIELD_CV_CONTENT_TYPE to cvMetadata.contentType,
+                    FIELD_CV_SIZE_BYTES to cvMetadata.sizeBytes,
+                    FIELD_CV_UPLOADED_AT to FieldValue.serverTimestamp(),
+                ),
+            ).await()
+            onProgress(1f)
+            ProfileResult.Success(cvMetadata)
+        } catch (exception: Exception) {
+            ProfileResult.Failure(exception.toProfileError())
+        }
+    }
+
     private fun userDocument(uid: String) = firestore
         .collection(USERS_COLLECTION)
         .document(uid)
@@ -84,8 +146,15 @@ class FirebaseJobSeekerProfileRepository(
                 experienceSummary = getString(FIELD_EXPERIENCE_SUMMARY).orEmpty(),
                 skills = getStringList(FIELD_SKILLS),
                 preferredJobTypes = getStringList(FIELD_PREFERRED_JOB_TYPES),
+                cv = get(FIELD_CV, CvMetadata::class.java),
             ),
         )
+    }
+
+    private fun DocumentSnapshot.jobSeekerAccountError(): ProfileError? = when {
+        !exists() -> ProfileError.PROFILE_NOT_FOUND
+        getString(FIELD_ROLE) != UserRole.JOB_SEEKER.name -> ProfileError.WRONG_ROLE
+        else -> null
     }
 
     private fun DocumentSnapshot.getStringList(field: String): List<String> =
@@ -115,6 +184,16 @@ class FirebaseJobSeekerProfileRepository(
             else -> ProfileError.UNKNOWN
         }
 
+        is StorageException -> when (errorCode) {
+            StorageException.ERROR_NOT_AUTHENTICATED -> ProfileError.NOT_AUTHENTICATED
+            StorageException.ERROR_NOT_AUTHORIZED -> ProfileError.PERMISSION_DENIED
+            StorageException.ERROR_RETRY_LIMIT_EXCEEDED -> ProfileError.NETWORK
+            StorageException.ERROR_OBJECT_NOT_FOUND -> ProfileError.CV_FILE_UNAVAILABLE
+            else -> ProfileError.CV_UPLOAD_FAILED
+        }
+
+        is FileNotFoundException -> ProfileError.CV_FILE_UNAVAILABLE
+
         else -> ProfileError.UNKNOWN
     }
 
@@ -130,5 +209,11 @@ class FirebaseJobSeekerProfileRepository(
         const val FIELD_EXPERIENCE_SUMMARY = "experienceSummary"
         const val FIELD_SKILLS = "skills"
         const val FIELD_PREFERRED_JOB_TYPES = "preferredJobTypes"
+        const val FIELD_CV = "cv"
+        const val FIELD_CV_FILE_NAME = "fileName"
+        const val FIELD_CV_STORAGE_PATH = "storagePath"
+        const val FIELD_CV_CONTENT_TYPE = "contentType"
+        const val FIELD_CV_SIZE_BYTES = "sizeBytes"
+        const val FIELD_CV_UPLOADED_AT = "uploadedAt"
     }
 }
