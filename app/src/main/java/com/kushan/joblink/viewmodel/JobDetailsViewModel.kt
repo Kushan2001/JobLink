@@ -16,8 +16,17 @@ import kotlinx.coroutines.launch
 data class JobDetailsUiState(
     val job: Job? = null,
     val isLoading: Boolean = true,
+    val isSavingJob: Boolean = false,
+    val isSaved: Boolean = false,
     val error: JobError? = null,
+    val actionError: JobError? = null,
+    val actionMessage: JobDetailsActionMessage? = null,
 )
+
+enum class JobDetailsActionMessage {
+    JOB_SAVED,
+    APPLY_UNAVAILABLE,
+}
 
 class JobDetailsViewModel(
     private val jobId: String,
@@ -32,6 +41,49 @@ class JobDetailsViewModel(
 
     fun retry() {
         loadJob()
+    }
+
+    fun onSaveJob() {
+        if (_uiState.value.isSavingJob || _uiState.value.isSaved) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSavingJob = true,
+                    actionError = null,
+                    actionMessage = null,
+                )
+            }
+            when (val result = jobRepository.saveJob(jobId)) {
+                is JobResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingJob = false,
+                            isSaved = true,
+                            actionMessage = JobDetailsActionMessage.JOB_SAVED,
+                        )
+                    }
+                }
+
+                is JobResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingJob = false,
+                            actionError = result.error,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun onApplyNow() {
+        _uiState.update {
+            it.copy(
+                actionError = null,
+                actionMessage = JobDetailsActionMessage.APPLY_UNAVAILABLE,
+            )
+        }
     }
 
     private fun loadJob() {

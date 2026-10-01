@@ -93,5 +93,8 @@ class HomeViewModelTest {
             JobResult.Failure(JobError.JOB_NOT_FOUND)
 
         override suspend fun postJob(job: Job): JobResult<Job> = JobResult.Success(job)
+
+        override suspend fun saveJob(jobId: String): JobResult<Unit> =
+            JobResult.Success(Unit)
     }
 }
