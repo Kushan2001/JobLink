@@ -496,6 +496,10 @@ private fun CompanyProfileErrorMessage(
         ProfileError.PERMISSION_DENIED -> R.string.company_profile_error_permission_denied
         ProfileError.NETWORK -> R.string.company_profile_error_network
         ProfileError.UNKNOWN -> R.string.company_profile_error_unknown
+        ProfileError.INVALID_CV_FILE,
+        ProfileError.CV_FILE_UNAVAILABLE,
+        ProfileError.CV_UPLOAD_FAILED,
+        -> R.string.company_profile_error_unknown
     }
 
     Surface(

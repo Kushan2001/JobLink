@@ -3,6 +3,7 @@ package com.kushan.joblink.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kushan.joblink.data.model.CvUploadFile
 import com.kushan.joblink.data.model.JobSeekerProfile
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.ProfileError
@@ -31,6 +32,11 @@ data class JobSeekerProfileUiState(
     val isEditing: Boolean = false,
     val saveSucceeded: Boolean = false,
     val error: ProfileError? = null,
+    val selectedCvFile: CvUploadFile? = null,
+    val isUploadingCv: Boolean = false,
+    val cvUploadProgress: Float = 0f,
+    val cvUploadSucceeded: Boolean = false,
+    val cvUploadError: ProfileError? = null,
 )
 
 enum class ProfileValidationError {
@@ -53,7 +59,7 @@ class JobSeekerProfileViewModel(
     }
 
     fun loadProfile() {
-        if (_uiState.value.isSaving) return
+        if (_uiState.value.isSaving || _uiState.value.isUploadingCv) return
 
         viewModelScope.launch {
             _uiState.update {
@@ -82,6 +88,7 @@ class JobSeekerProfileViewModel(
     }
 
     fun startEditing() {
+        if (_uiState.value.isUploadingCv) return
         val profile = _uiState.value.savedProfile ?: return
         _uiState.value = profile.toUiState(isEditing = true)
     }
@@ -125,9 +132,70 @@ class JobSeekerProfileViewModel(
             copy(preferredJobTypesInput = value)
         }
 
+    fun onCvFileSelected(file: CvUploadFile) {
+        _uiState.update {
+            it.copy(
+                selectedCvFile = file,
+                cvUploadProgress = 0f,
+                cvUploadSucceeded = false,
+                cvUploadError = if (file.isPdf) null else ProfileError.INVALID_CV_FILE,
+            )
+        }
+    }
+
+    fun uploadSelectedCv() {
+        val currentState = _uiState.value
+        val file = currentState.selectedCvFile ?: return
+        if (currentState.isUploadingCv || currentState.isSaving) return
+        if (!file.isPdf) {
+            _uiState.update { it.copy(cvUploadError = ProfileError.INVALID_CV_FILE) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isUploadingCv = true,
+                    cvUploadProgress = 0f,
+                    cvUploadSucceeded = false,
+                    cvUploadError = null,
+                )
+            }
+            when (
+                val result = profileRepository.uploadCv(file) { progress ->
+                    _uiState.update { state ->
+                        state.copy(cvUploadProgress = progress)
+                    }
+                }
+            ) {
+                is ProfileResult.Success -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            savedProfile = state.savedProfile?.copy(cv = result.value),
+                            selectedCvFile = null,
+                            isUploadingCv = false,
+                            cvUploadProgress = 1f,
+                            cvUploadSucceeded = true,
+                            cvUploadError = null,
+                        )
+                    }
+                }
+
+                is ProfileResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isUploadingCv = false,
+                            cvUploadError = result.error,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun saveProfile() {
         val currentState = _uiState.value
-        if (currentState.isSaving) return
+        if (currentState.isSaving || currentState.isUploadingCv) return
 
         val skills = currentState.skillsInput.toEntryList()
         val preferredJobTypes = currentState.preferredJobTypesInput.toEntryList()
@@ -165,6 +233,7 @@ class JobSeekerProfileViewModel(
             experienceSummary = currentState.experienceSummary.trim(),
             skills = skills,
             preferredJobTypes = preferredJobTypes,
+            cv = currentState.savedProfile?.cv,
         )
 
         viewModelScope.launch {

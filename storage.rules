@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/cv/{fileName} {
+      function isOwnerJobSeeker() {
+        return request.auth != null
+          && request.auth.uid == userId
+          && firestore.get(
+            /databases/(default)/documents/users/$(userId)
+          ).data.role == 'JOB_SEEKER';
+      }
+
+      allow read: if isOwnerJobSeeker();
+      allow write: if isOwnerJobSeeker()
+        && request.resource != null
+        && request.resource.contentType == 'application/pdf';
+    }
+  }
+}
