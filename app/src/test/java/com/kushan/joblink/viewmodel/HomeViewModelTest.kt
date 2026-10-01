@@ -101,6 +101,21 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun savedJobIdsAreExposedForFeedCards() = runTest {
+        val jobs = filterableJobs()
+        val repository = FakeJobRepository(
+            activeJobResults = mutableListOf(JobResult.Success(jobs)),
+            savedJobsResult = JobResult.Success(listOf(jobs.first())),
+        )
+
+        val viewModel = HomeViewModel(repository)
+        advanceUntilIdle()
+
+        assertEquals(setOf("android"), viewModel.uiState.value.savedJobIds)
+        assertEquals(1, repository.savedJobCalls)
+    }
+
+    @Test
     fun textAndEnumFiltersCanBeCombinedAndCleared() = runTest {
         val jobs = filterableJobs()
         val repository = FakeJobRepository(
@@ -186,8 +201,10 @@ class HomeViewModelTest {
 
     private class FakeJobRepository(
         private val activeJobResults: MutableList<JobResult<List<Job>>>,
+        private val savedJobsResult: JobResult<List<Job>> = JobResult.Success(emptyList()),
     ) : JobRepository {
         var activeJobCalls = 0
+        var savedJobCalls = 0
 
         override suspend fun getActiveJobs(): JobResult<List<Job>> {
             activeJobCalls += 1
@@ -197,9 +214,20 @@ class HomeViewModelTest {
         override suspend fun getJob(jobId: String): JobResult<Job> =
             JobResult.Failure(JobError.JOB_NOT_FOUND)
 
+        override suspend fun getSavedJobs(): JobResult<List<Job>> {
+            savedJobCalls += 1
+            return savedJobsResult
+        }
+
+        override suspend fun isJobSaved(jobId: String): JobResult<Boolean> =
+            JobResult.Success(false)
+
         override suspend fun postJob(job: Job): JobResult<Job> = JobResult.Success(job)
 
         override suspend fun saveJob(jobId: String): JobResult<Unit> =
+            JobResult.Success(Unit)
+
+        override suspend fun unsaveJob(jobId: String): JobResult<Unit> =
             JobResult.Success(Unit)
     }
 }

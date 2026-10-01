@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val allJobs: List<Job> = emptyList(),
     val jobs: List<Job> = emptyList(),
+    val savedJobIds: Set<String> = emptySet(),
     val searchQuery: String = "",
     val categoryFilter: String = "",
     val locationFilter: String = "",
@@ -107,7 +108,11 @@ class HomeViewModel(
 
     private fun loadJobs(isRefresh: Boolean = false) {
         val currentState = _uiState.value
-        if (currentState.isRefreshing || (!currentState.isLoading && isRefresh.not() && currentState.error == null)) {
+        if (
+            currentState.isRefreshing ||
+            (currentState.isLoading && isRefresh) ||
+            (!currentState.isLoading && isRefresh.not() && currentState.error == null)
+        ) {
             return
         }
 
@@ -119,23 +124,28 @@ class HomeViewModel(
                     error = null,
                 )
             }
-            when (val result = jobRepository.getActiveJobs()) {
-                is JobResult.Success -> {
+            val jobsResult = jobRepository.getActiveJobs()
+            val savedJobsResult = jobRepository.getSavedJobs()
+            when {
+                jobsResult is JobResult.Success && savedJobsResult is JobResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            allJobs = result.value,
+                            allJobs = jobsResult.value,
+                            savedJobIds = savedJobsResult.value.mapTo(mutableSetOf(), Job::id),
                             isLoading = false,
                             isRefreshing = false,
                         ).withFilteredJobs()
                     }
                 }
 
-                is JobResult.Failure -> {
+                else -> {
+                    val error = (jobsResult as? JobResult.Failure)?.error
+                        ?: (savedJobsResult as JobResult.Failure).error
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
-                            error = result.error,
+                            error = error,
                         )
                     }
                 }

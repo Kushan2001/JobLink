@@ -48,23 +48,84 @@ class FirebaseJobRepository(
         }
     }
 
+    override suspend fun getSavedJobs(): JobResult<List<Job>> {
+        val uid = firebaseAuth.currentUser?.uid
+            ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
+
+        return try {
+            val accountError = jobSeekerAccountError(uid)
+            if (accountError != null) return JobResult.Failure(accountError)
+
+            val documents = savedJobsCollection(uid)
+                .orderBy(FIELD_SAVED_AT, Query.Direction.DESCENDING)
+                .get()
+                .await()
+            JobResult.Success(
+                documents.documents.mapNotNull { document ->
+                    document.toSavedJobOrLegacyJob()
+                },
+            )
+        } catch (exception: Exception) {
+            JobResult.Failure(exception.toJobError())
+        }
+    }
+
+    override suspend fun isJobSaved(jobId: String): JobResult<Boolean> {
+        val uid = firebaseAuth.currentUser?.uid
+            ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
+        if (jobId.isBlank()) return JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        return try {
+            val accountError = jobSeekerAccountError(uid)
+            if (accountError != null) return JobResult.Failure(accountError)
+
+            JobResult.Success(savedJobsCollection(uid).document(jobId).get().await().exists())
+        } catch (exception: Exception) {
+            JobResult.Failure(exception.toJobError())
+        }
+    }
+
     override suspend fun saveJob(jobId: String): JobResult<Unit> {
         val uid = firebaseAuth.currentUser?.uid
             ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
         if (jobId.isBlank()) return JobResult.Failure(JobError.JOB_NOT_FOUND)
 
         return try {
-            firestore.collection(USERS_COLLECTION)
-                .document(uid)
-                .collection(SAVED_JOBS_COLLECTION)
+            val accountError = jobSeekerAccountError(uid)
+            if (accountError != null) return JobResult.Failure(accountError)
+
+            val jobDocument = firestore.collection(JOBS_COLLECTION).document(jobId).get().await()
+            val job = jobDocument.toObject(Job::class.java)?.copy(id = jobDocument.id)
+            if (job == null || !job.active) {
+                return JobResult.Failure(JobError.JOB_NOT_FOUND)
+            }
+
+            savedJobsCollection(uid)
                 .document(jobId)
                 .set(
                     mapOf(
                         FIELD_JOB_ID to jobId,
+                        FIELD_JOB to job.toSavedJobData(),
                         FIELD_SAVED_AT to FieldValue.serverTimestamp(),
                     ),
                 )
                 .await()
+            JobResult.Success(Unit)
+        } catch (exception: Exception) {
+            JobResult.Failure(exception.toJobError())
+        }
+    }
+
+    override suspend fun unsaveJob(jobId: String): JobResult<Unit> {
+        val uid = firebaseAuth.currentUser?.uid
+            ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
+        if (jobId.isBlank()) return JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        return try {
+            val accountError = jobSeekerAccountError(uid)
+            if (accountError != null) return JobResult.Failure(accountError)
+
+            savedJobsCollection(uid).document(jobId).delete().await()
             JobResult.Success(Unit)
         } catch (exception: Exception) {
             JobResult.Failure(exception.toJobError())
@@ -107,6 +168,28 @@ class FirebaseJobRepository(
         else -> null
     }
 
+    private suspend fun jobSeekerAccountError(uid: String): JobError? {
+        val document = firestore.collection(USERS_COLLECTION).document(uid).get().await()
+        return when {
+            !document.exists() -> JobError.ACCOUNT_NOT_FOUND
+            document.getString(FIELD_ROLE) != UserRole.JOB_SEEKER.name -> JobError.WRONG_ROLE
+            else -> null
+        }
+    }
+
+    private fun savedJobsCollection(uid: String) = firestore.collection(USERS_COLLECTION)
+        .document(uid)
+        .collection(SAVED_JOBS_COLLECTION)
+
+    private suspend fun DocumentSnapshot.toSavedJobOrLegacyJob(): Job? {
+        get(FIELD_JOB, Job::class.java)?.let { return it.copy(id = id) }
+
+        // Saved-job references created by earlier app versions did not contain a snapshot.
+        val legacyJobId = getString(FIELD_JOB_ID).orEmpty().ifBlank { id }
+        val legacyJob = firestore.collection(JOBS_COLLECTION).document(legacyJobId).get().await()
+        return legacyJob.toObject(Job::class.java)?.copy(id = legacyJob.id)
+    }
+
     private fun Job.toFirestoreData(): Map<String, Any?> = mapOf(
         FIELD_ID to id,
         FIELD_EMPLOYER_ID to employerId,
@@ -127,6 +210,29 @@ class FirebaseJobRepository(
         FIELD_APPLICATION_DEADLINE to applicationDeadline,
         FIELD_CREATED_AT to FieldValue.serverTimestamp(),
         FIELD_UPDATED_AT to FieldValue.serverTimestamp(),
+        FIELD_ACTIVE to active,
+    )
+
+    private fun Job.toSavedJobData(): Map<String, Any?> = mapOf(
+        FIELD_ID to id,
+        FIELD_EMPLOYER_ID to employerId,
+        FIELD_COMPANY_NAME to companyName,
+        FIELD_TITLE to title,
+        FIELD_DESCRIPTION to description,
+        FIELD_CATEGORY to category,
+        FIELD_LOCATION to location,
+        FIELD_WORK_MODE to workMode.name,
+        FIELD_JOB_TYPE to jobType.name,
+        FIELD_SALARY_MIN to salaryMin,
+        FIELD_SALARY_MAX to salaryMax,
+        FIELD_CURRENCY to currency,
+        FIELD_EXPERIENCE_LEVEL to experienceLevel,
+        FIELD_REQUIRED_SKILLS to requiredSkills,
+        FIELD_REQUIREMENTS to requirements,
+        FIELD_BENEFITS to benefits,
+        FIELD_APPLICATION_DEADLINE to applicationDeadline,
+        FIELD_CREATED_AT to createdAt,
+        FIELD_UPDATED_AT to updatedAt,
         FIELD_ACTIVE to active,
     )
 
@@ -171,6 +277,7 @@ class FirebaseJobRepository(
         const val FIELD_UPDATED_AT = "updatedAt"
         const val FIELD_ACTIVE = "active"
         const val FIELD_JOB_ID = "jobId"
+        const val FIELD_JOB = "job"
         const val FIELD_SAVED_AT = "savedAt"
     }
 }
