@@ -3,6 +3,7 @@ package com.kushan.joblink.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ fun JobCard(
     job: Job,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isSaved: Boolean = false,
 ) {
     Card(
         onClick = onClick,
@@ -38,11 +40,33 @@ fun JobCard(
         ),
     ) {
         Column(modifier = Modifier.padding(JobLinkSpacing.large)) {
-            Text(
-                text = job.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(JobLinkSpacing.small),
+            ) {
+                Text(
+                    text = job.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (isSaved) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.job_saved),
+                            modifier = Modifier.padding(
+                                horizontal = JobLinkSpacing.small,
+                                vertical = JobLinkSpacing.extraSmall,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.extraSmall))
             Text(
                 text = job.companyName,

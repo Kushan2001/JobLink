@@ -25,5 +25,11 @@ interface JobRepository {
 
     suspend fun getJob(jobId: String): JobResult<Job>
 
+    suspend fun getSavedJobs(): JobResult<List<Job>>
+
+    suspend fun isJobSaved(jobId: String): JobResult<Boolean>
+
     suspend fun saveJob(jobId: String): JobResult<Unit>
+
+    suspend fun unsaveJob(jobId: String): JobResult<Unit>
 }

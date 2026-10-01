@@ -55,11 +55,11 @@ fun JobDetailsScreen(
         uiState.isLoading -> JobDetailsLoading(modifier)
         job != null -> JobDetailsContent(
             job = job,
-            isSavingJob = uiState.isSavingJob,
+            isUpdatingSavedState = uiState.isUpdatingSavedState,
             isSaved = uiState.isSaved,
             actionError = uiState.actionError,
             actionMessage = uiState.actionMessage,
-            onSaveJob = viewModel::onSaveJob,
+            onSavedStateToggle = viewModel::onSavedStateToggle,
             onApplyNow = viewModel::onApplyNow,
             onBack = onBack,
             modifier = modifier,
@@ -77,11 +77,11 @@ fun JobDetailsScreen(
 @Composable
 private fun JobDetailsContent(
     job: Job,
-    isSavingJob: Boolean,
+    isUpdatingSavedState: Boolean,
     isSaved: Boolean,
     actionError: com.kushan.joblink.data.repository.JobError?,
     actionMessage: JobDetailsActionMessage?,
-    onSaveJob: () -> Unit,
+    onSavedStateToggle: () -> Unit,
     onApplyNow: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -156,15 +156,16 @@ private fun JobDetailsContent(
 
             Spacer(modifier = Modifier.height(JobLinkSpacing.large))
             OutlinedButton(
-                onClick = onSaveJob,
-                enabled = !isSavingJob && !isSaved,
+                onClick = onSavedStateToggle,
+                enabled = !isUpdatingSavedState,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     text = stringResource(
                         when {
-                            isSavingJob -> R.string.saving_job
-                            isSaved -> R.string.job_saved
+                            isUpdatingSavedState && isSaved -> R.string.removing_saved_job
+                            isUpdatingSavedState -> R.string.saving_job
+                            isSaved -> R.string.unsave_job
                             else -> R.string.save_job
                         },
                     ),
@@ -233,6 +234,7 @@ private fun JobDetailsContent(
 private fun JobActionMessage(message: JobDetailsActionMessage) {
     val text = when (message) {
         JobDetailsActionMessage.JOB_SAVED -> R.string.job_saved_confirmation
+        JobDetailsActionMessage.JOB_UNSAVED -> R.string.job_unsaved_confirmation
         JobDetailsActionMessage.APPLY_UNAVAILABLE -> R.string.apply_unavailable
     }
     Surface(

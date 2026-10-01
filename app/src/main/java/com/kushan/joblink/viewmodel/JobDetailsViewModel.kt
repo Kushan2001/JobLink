@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 data class JobDetailsUiState(
     val job: Job? = null,
     val isLoading: Boolean = true,
-    val isSavingJob: Boolean = false,
+    val isUpdatingSavedState: Boolean = false,
     val isSaved: Boolean = false,
     val error: JobError? = null,
     val actionError: JobError? = null,
@@ -25,6 +25,7 @@ data class JobDetailsUiState(
 
 enum class JobDetailsActionMessage {
     JOB_SAVED,
+    JOB_UNSAVED,
     APPLY_UNAVAILABLE,
 }
 
@@ -43,24 +44,35 @@ class JobDetailsViewModel(
         loadJob()
     }
 
-    fun onSaveJob() {
-        if (_uiState.value.isSavingJob || _uiState.value.isSaved) return
+    fun onSavedStateToggle() {
+        val currentState = _uiState.value
+        if (currentState.isUpdatingSavedState) return
 
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
-                    isSavingJob = true,
+                    isUpdatingSavedState = true,
                     actionError = null,
                     actionMessage = null,
                 )
             }
-            when (val result = jobRepository.saveJob(jobId)) {
+            val result = if (currentState.isSaved) {
+                jobRepository.unsaveJob(jobId)
+            } else {
+                jobRepository.saveJob(jobId)
+            }
+            when (result) {
                 is JobResult.Success -> {
+                    val isSaved = !currentState.isSaved
                     _uiState.update {
                         it.copy(
-                            isSavingJob = false,
-                            isSaved = true,
-                            actionMessage = JobDetailsActionMessage.JOB_SAVED,
+                            isUpdatingSavedState = false,
+                            isSaved = isSaved,
+                            actionMessage = if (isSaved) {
+                                JobDetailsActionMessage.JOB_SAVED
+                            } else {
+                                JobDetailsActionMessage.JOB_UNSAVED
+                            },
                         )
                     }
                 }
@@ -68,7 +80,7 @@ class JobDetailsViewModel(
                 is JobResult.Failure -> {
                     _uiState.update {
                         it.copy(
-                            isSavingJob = false,
+                            isUpdatingSavedState = false,
                             actionError = result.error,
                         )
                     }
@@ -94,7 +106,22 @@ class JobDetailsViewModel(
             _uiState.update { it.copy(isLoading = true, error = null) }
             when (val result = jobRepository.getJob(jobId)) {
                 is JobResult.Success -> {
-                    _uiState.value = JobDetailsUiState(job = result.value, isLoading = false)
+                    when (val savedResult = jobRepository.isJobSaved(jobId)) {
+                        is JobResult.Success -> {
+                            _uiState.value = JobDetailsUiState(
+                                job = result.value,
+                                isLoading = false,
+                                isSaved = savedResult.value,
+                            )
+                        }
+
+                        is JobResult.Failure -> {
+                            _uiState.value = JobDetailsUiState(
+                                isLoading = false,
+                                error = savedResult.error,
+                            )
+                        }
+                    }
                 }
 
                 is JobResult.Failure -> {

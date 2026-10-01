@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,6 +42,9 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kushan.joblink.R
 import com.kushan.joblink.data.model.JobType
@@ -56,12 +60,22 @@ import com.kushan.joblink.viewmodel.HomeViewModel
 fun HomeScreen(
     viewModel: HomeViewModel,
     onJobClick: (String) -> Unit,
+    onSavedJobs: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val error = uiState.error
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Column(
         modifier = modifier
@@ -69,7 +83,11 @@ fun HomeScreen(
             .safeDrawingPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        HomeHeader(onProfile = onProfile, onLogout = onLogout)
+        HomeHeader(
+            onSavedJobs = onSavedJobs,
+            onProfile = onProfile,
+            onLogout = onLogout,
+        )
         SearchAndFilterBar(
             uiState = uiState,
             onSearchQueryChanged = viewModel::onSearchQueryChanged,
@@ -298,6 +316,7 @@ private fun WorkMode.displayLabel(): String = stringResource(
 
 @Composable
 private fun HomeHeader(
+    onSavedJobs: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -314,6 +333,9 @@ private fun HomeHeader(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
+            TextButton(onClick = onSavedJobs) {
+                Text(text = stringResource(R.string.saved_jobs))
+            }
             TextButton(onClick = onProfile) {
                 Text(text = stringResource(R.string.profile))
             }
@@ -373,6 +395,7 @@ private fun JobFeed(
                 JobCard(
                     job = job,
                     onClick = { onJobClick(job.id) },
+                    isSaved = job.id in uiState.savedJobIds,
                 )
             }
         }

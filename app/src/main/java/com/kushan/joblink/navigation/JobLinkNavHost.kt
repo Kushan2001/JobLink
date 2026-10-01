@@ -23,6 +23,7 @@ import com.kushan.joblink.ui.screens.PostJobScreen
 import com.kushan.joblink.ui.screens.JobSeekerProfileScreen
 import com.kushan.joblink.ui.screens.RegisterScreen
 import com.kushan.joblink.ui.screens.RoleSelectionScreen
+import com.kushan.joblink.ui.screens.SavedJobsScreen
 import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
@@ -30,6 +31,7 @@ import com.kushan.joblink.viewmodel.HomeViewModel
 import com.kushan.joblink.viewmodel.JobDetailsViewModel
 import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
 import com.kushan.joblink.viewmodel.PostJobViewModel
+import com.kushan.joblink.viewmodel.SavedJobsViewModel
 
 @Composable
 fun JobLinkNavHost(
@@ -124,6 +126,7 @@ fun JobLinkNavHost(
                         onJobClick = { jobId ->
                             navController.navigate(JobDetailsDestination(jobId))
                         },
+                        onSavedJobs = { navController.navigate(SavedJobsDestination) },
                         onProfile = { navController.navigate(JobSeekerProfileDestination) },
                         onLogout = {
                             authViewModel.logout()
@@ -136,6 +139,23 @@ fun JobLinkNavHost(
                 }
 
                 else -> AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<SavedJobsDestination> {
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
+                val savedJobsViewModel: SavedJobsViewModel = viewModel(
+                    factory = SavedJobsViewModel.Factory(jobRepository),
+                )
+                SavedJobsScreen(
+                    viewModel = savedJobsViewModel,
+                    onJobClick = { jobId ->
+                        navController.navigate(JobDetailsDestination(jobId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
             }
         }
 

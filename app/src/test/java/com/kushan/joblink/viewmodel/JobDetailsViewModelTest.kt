@@ -44,17 +44,26 @@ class JobDetailsViewModelTest {
     }
 
     @Test
-    fun savePersistsJobReferenceAndApplyShowsPlaceholderFeedback() = runTest {
+    fun saveAndUnsaveTogglePersistedStateAndApplyShowsPlaceholderFeedback() = runTest {
         val repository = FakeJobRepository(JobResult.Success(Job(id = "job-1")))
         val viewModel = JobDetailsViewModel("job-1", repository)
         advanceUntilIdle()
 
-        viewModel.onSaveJob()
+        viewModel.onSavedStateToggle()
         advanceUntilIdle()
         assertEquals("job-1", repository.savedJobId)
         assertEquals(true, viewModel.uiState.value.isSaved)
         assertEquals(
             JobDetailsActionMessage.JOB_SAVED,
+            viewModel.uiState.value.actionMessage,
+        )
+
+        viewModel.onSavedStateToggle()
+        advanceUntilIdle()
+        assertEquals("job-1", repository.unsavedJobId)
+        assertEquals(false, viewModel.uiState.value.isSaved)
+        assertEquals(
+            JobDetailsActionMessage.JOB_UNSAVED,
             viewModel.uiState.value.actionMessage,
         )
 
@@ -65,11 +74,27 @@ class JobDetailsViewModelTest {
         )
     }
 
+    @Test
+    fun existingSavedStateLoadsWithJob() = runTest {
+        val repository = FakeJobRepository(
+            jobResult = JobResult.Success(Job(id = "job-1")),
+            initiallySaved = true,
+        )
+
+        val viewModel = JobDetailsViewModel("job-1", repository)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.isSaved)
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
     private class FakeJobRepository(
         private val jobResult: JobResult<Job>,
+        private val initiallySaved: Boolean = false,
     ) : JobRepository {
         var requestedJobId: String? = null
         var savedJobId: String? = null
+        var unsavedJobId: String? = null
 
         override suspend fun getJob(jobId: String): JobResult<Job> {
             requestedJobId = jobId
@@ -79,10 +104,21 @@ class JobDetailsViewModelTest {
         override suspend fun getActiveJobs(): JobResult<List<Job>> =
             JobResult.Success(emptyList())
 
+        override suspend fun getSavedJobs(): JobResult<List<Job>> =
+            JobResult.Success(emptyList())
+
+        override suspend fun isJobSaved(jobId: String): JobResult<Boolean> =
+            JobResult.Success(initiallySaved)
+
         override suspend fun postJob(job: Job): JobResult<Job> = JobResult.Success(job)
 
         override suspend fun saveJob(jobId: String): JobResult<Unit> {
             savedJobId = jobId
+            return JobResult.Success(Unit)
+        }
+
+        override suspend fun unsaveJob(jobId: String): JobResult<Unit> {
+            unsavedJobId = jobId
             return JobResult.Success(Unit)
         }
     }
