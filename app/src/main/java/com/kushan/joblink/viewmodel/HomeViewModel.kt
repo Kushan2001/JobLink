@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kushan.joblink.data.model.Job
+import com.kushan.joblink.data.model.JobType
+import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
@@ -14,11 +16,35 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
+    val allJobs: List<Job> = emptyList(),
     val jobs: List<Job> = emptyList(),
+    val searchQuery: String = "",
+    val categoryFilter: String = "",
+    val locationFilter: String = "",
+    val experienceLevelFilter: String = "",
+    val jobTypeFilter: JobType? = null,
+    val workModeFilter: WorkMode? = null,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val error: JobError? = null,
-)
+) {
+    val hasActiveFilters: Boolean
+        get() = searchQuery.isNotBlank() ||
+            categoryFilter.isNotBlank() ||
+            locationFilter.isNotBlank() ||
+            experienceLevelFilter.isNotBlank() ||
+            jobTypeFilter != null ||
+            workModeFilter != null
+
+    val activeFilterCount: Int
+        get() = listOf(
+            categoryFilter.isNotBlank(),
+            locationFilter.isNotBlank(),
+            experienceLevelFilter.isNotBlank(),
+            jobTypeFilter != null,
+            workModeFilter != null,
+        ).count { it }
+}
 
 class HomeViewModel(
     private val jobRepository: JobRepository,
@@ -38,6 +64,47 @@ class HomeViewModel(
         loadJobs(isRefresh = true)
     }
 
+    fun onSearchQueryChanged(query: String) {
+        updateFilters { copy(searchQuery = query) }
+    }
+
+    fun onCategoryFilterChanged(category: String) {
+        updateFilters { copy(categoryFilter = category) }
+    }
+
+    fun onLocationFilterChanged(location: String) {
+        updateFilters { copy(locationFilter = location) }
+    }
+
+    fun onExperienceLevelFilterChanged(experienceLevel: String) {
+        updateFilters { copy(experienceLevelFilter = experienceLevel) }
+    }
+
+    fun onJobTypeFilterChanged(jobType: JobType) {
+        updateFilters {
+            copy(jobTypeFilter = jobType.takeUnless { it == jobTypeFilter })
+        }
+    }
+
+    fun onWorkModeFilterChanged(workMode: WorkMode) {
+        updateFilters {
+            copy(workModeFilter = workMode.takeUnless { it == workModeFilter })
+        }
+    }
+
+    fun clearFilters() {
+        updateFilters {
+            copy(
+                searchQuery = "",
+                categoryFilter = "",
+                locationFilter = "",
+                experienceLevelFilter = "",
+                jobTypeFilter = null,
+                workModeFilter = null,
+            )
+        }
+    }
+
     private fun loadJobs(isRefresh: Boolean = false) {
         val currentState = _uiState.value
         if (currentState.isRefreshing || (!currentState.isLoading && isRefresh.not() && currentState.error == null)) {
@@ -54,10 +121,13 @@ class HomeViewModel(
             }
             when (val result = jobRepository.getActiveJobs()) {
                 is JobResult.Success -> {
-                    _uiState.value = HomeUiState(
-                        jobs = result.value,
-                        isLoading = false,
-                    )
+                    _uiState.update {
+                        it.copy(
+                            allJobs = result.value,
+                            isLoading = false,
+                            isRefreshing = false,
+                        ).withFilteredJobs()
+                    }
                 }
 
                 is JobResult.Failure -> {
@@ -73,6 +143,12 @@ class HomeViewModel(
         }
     }
 
+    private fun updateFilters(update: HomeUiState.() -> HomeUiState) {
+        _uiState.update { currentState ->
+            currentState.update().withFilteredJobs()
+        }
+    }
+
     class Factory(
         private val jobRepository: JobRepository,
     ) : ViewModelProvider.Factory {
@@ -85,3 +161,27 @@ class HomeViewModel(
         }
     }
 }
+
+private fun HomeUiState.withFilteredJobs(): HomeUiState {
+    val searchTerms = searchQuery.normalizedTerms()
+    val normalizedCategory = categoryFilter.normalizedValue()
+    val normalizedLocation = locationFilter.normalizedValue()
+    val normalizedExperience = experienceLevelFilter.normalizedValue()
+
+    val filteredJobs = allJobs.filter { job ->
+        val searchableText = "${job.title} ${job.companyName}".normalizedValue()
+        searchTerms.all(searchableText::contains) &&
+            job.category.normalizedValue().contains(normalizedCategory) &&
+            job.location.normalizedValue().contains(normalizedLocation) &&
+            job.experienceLevel.normalizedValue().contains(normalizedExperience) &&
+            (jobTypeFilter == null || job.jobType == jobTypeFilter) &&
+            (workModeFilter == null || job.workMode == workModeFilter)
+    }
+    return copy(jobs = filteredJobs)
+}
+
+private fun String.normalizedTerms(): List<String> =
+    normalizedValue().split(" ").filter(String::isNotBlank)
+
+private fun String.normalizedValue(): String =
+    trim().lowercase().replace(Regex("\\s+"), " ")

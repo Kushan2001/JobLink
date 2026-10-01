@@ -2,6 +2,8 @@ package com.kushan.joblink.viewmodel
 
 import com.kushan.joblink.MainDispatcherRule
 import com.kushan.joblink.data.model.Job
+import com.kushan.joblink.data.model.JobType
+import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
@@ -78,6 +80,109 @@ class HomeViewModelTest {
         assertEquals(JobError.NETWORK, viewModel.uiState.value.error)
         assertFalse(viewModel.uiState.value.isRefreshing)
     }
+
+    @Test
+    fun searchMatchesTitleAndCompanyWithoutAnotherRepositoryRead() = runTest {
+        val repository = FakeJobRepository(
+            mutableListOf(JobResult.Success(filterableJobs())),
+        )
+        val viewModel = HomeViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onSearchQueryChanged("android acme")
+
+        assertEquals(listOf("android"), viewModel.uiState.value.jobs.map(Job::id))
+        assertEquals(1, repository.activeJobCalls)
+
+        viewModel.onSearchQueryChanged("northstar")
+
+        assertEquals(listOf("designer"), viewModel.uiState.value.jobs.map(Job::id))
+        assertEquals(1, repository.activeJobCalls)
+    }
+
+    @Test
+    fun textAndEnumFiltersCanBeCombinedAndCleared() = runTest {
+        val jobs = filterableJobs()
+        val repository = FakeJobRepository(
+            mutableListOf(JobResult.Success(jobs)),
+        )
+        val viewModel = HomeViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onCategoryFilterChanged("engineering")
+        viewModel.onLocationFilterChanged("colombo")
+        viewModel.onExperienceLevelFilterChanged("mid")
+        viewModel.onJobTypeFilterChanged(JobType.FULL_TIME)
+        viewModel.onWorkModeFilterChanged(WorkMode.HYBRID)
+
+        val filteredState = viewModel.uiState.value
+        assertEquals(listOf("android"), filteredState.jobs.map(Job::id))
+        assertEquals(5, filteredState.activeFilterCount)
+        assertTrue(filteredState.hasActiveFilters)
+        assertEquals(1, repository.activeJobCalls)
+
+        viewModel.clearFilters()
+
+        assertEquals(jobs, viewModel.uiState.value.jobs)
+        assertFalse(viewModel.uiState.value.hasActiveFilters)
+    }
+
+    @Test
+    fun selectedFiltersRemainAppliedAfterRefresh() = runTest {
+        val initialJobs = filterableJobs()
+        val refreshedJobs = initialJobs + Job(
+            id = "ios",
+            companyName = "Acme Labs",
+            title = "iOS Developer",
+            category = "Engineering",
+            location = "Kandy",
+            experienceLevel = "Mid level",
+            jobType = JobType.CONTRACT,
+            workMode = WorkMode.REMOTE,
+        )
+        val repository = FakeJobRepository(
+            mutableListOf(
+                JobResult.Success(initialJobs),
+                JobResult.Success(refreshedJobs),
+            ),
+        )
+        val viewModel = HomeViewModel(repository)
+        advanceUntilIdle()
+        viewModel.onCategoryFilterChanged("engineering")
+        viewModel.onWorkModeFilterChanged(WorkMode.REMOTE)
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("engineering", state.categoryFilter)
+        assertEquals(WorkMode.REMOTE, state.workModeFilter)
+        assertEquals(listOf("ios"), state.jobs.map(Job::id))
+        assertEquals(2, repository.activeJobCalls)
+    }
+
+    private fun filterableJobs(): List<Job> = listOf(
+        Job(
+            id = "android",
+            companyName = "Acme Labs",
+            title = "Android Developer",
+            category = "Engineering",
+            location = "Colombo",
+            experienceLevel = "Mid level",
+            jobType = JobType.FULL_TIME,
+            workMode = WorkMode.HYBRID,
+        ),
+        Job(
+            id = "designer",
+            companyName = "Northstar Studio",
+            title = "Product Designer",
+            category = "Design",
+            location = "Galle",
+            experienceLevel = "Senior",
+            jobType = JobType.CONTRACT,
+            workMode = WorkMode.REMOTE,
+        ),
+    )
 
     private class FakeJobRepository(
         private val activeJobResults: MutableList<JobResult<List<Job>>>,
