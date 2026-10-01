@@ -45,6 +45,7 @@ import java.text.NumberFormat
 @Composable
 fun JobDetailsScreen(
     viewModel: JobDetailsViewModel,
+    onApplyNow: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -60,7 +61,7 @@ fun JobDetailsScreen(
             actionError = uiState.actionError,
             actionMessage = uiState.actionMessage,
             onSavedStateToggle = viewModel::onSavedStateToggle,
-            onApplyNow = viewModel::onApplyNow,
+            onApplyNow = { onApplyNow(job.id) },
             onBack = onBack,
             modifier = modifier,
         )
@@ -235,7 +236,6 @@ private fun JobActionMessage(message: JobDetailsActionMessage) {
     val text = when (message) {
         JobDetailsActionMessage.JOB_SAVED -> R.string.job_saved_confirmation
         JobDetailsActionMessage.JOB_UNSAVED -> R.string.job_unsaved_confirmation
-        JobDetailsActionMessage.APPLY_UNAVAILABLE -> R.string.apply_unavailable
     }
     Surface(
         modifier = Modifier
