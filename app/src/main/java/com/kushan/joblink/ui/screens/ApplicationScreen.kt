@@ -267,6 +267,7 @@ private fun ApplicationErrorMessage(error: ApplicationError) {
         ApplicationError.PROFILE_NOT_FOUND -> R.string.application_error_profile
         ApplicationError.WRONG_ROLE -> R.string.application_error_role
         ApplicationError.JOB_NOT_FOUND -> R.string.application_error_job
+        ApplicationError.APPLICATION_NOT_FOUND -> R.string.application_details_not_found
         ApplicationError.CV_REQUIRED -> R.string.application_error_cv_required
         ApplicationError.ALREADY_APPLIED -> R.string.application_error_duplicate
         ApplicationError.PERMISSION_DENIED -> R.string.application_error_permission

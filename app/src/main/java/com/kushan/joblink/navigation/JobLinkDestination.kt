@@ -25,6 +25,12 @@ data object JobSeekerProfileDestination
 data object SavedJobsDestination
 
 @Serializable
+data object MyApplicationsDestination
+
+@Serializable
+data class ApplicationDetailsDestination(val applicationId: String)
+
+@Serializable
 data class JobDetailsDestination(val jobId: String)
 
 @Serializable

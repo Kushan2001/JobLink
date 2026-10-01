@@ -9,6 +9,8 @@ data class JobApplication(
     val jobId: String = "",
     val employerId: String = "",
     val applicantId: String = "",
+    val jobTitle: String = "",
+    val companyName: String = "",
     val submittedAt: Timestamp? = null,
     val status: ApplicationStatus = ApplicationStatus.SUBMITTED,
     val coverMessage: String? = null,
@@ -18,6 +20,12 @@ data class JobApplication(
 @Keep
 enum class ApplicationStatus {
     SUBMITTED,
+    REVIEWED,
+    SHORTLISTED,
+    INTERVIEW,
+    OFFERED,
+    REJECTED,
+    WITHDRAWN,
 }
 
 data class ApplicationDraft(
