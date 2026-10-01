@@ -43,10 +43,33 @@ class JobDetailsViewModelTest {
         assertEquals(JobError.JOB_NOT_FOUND, viewModel.uiState.value.error)
     }
 
+    @Test
+    fun savePersistsJobReferenceAndApplyShowsPlaceholderFeedback() = runTest {
+        val repository = FakeJobRepository(JobResult.Success(Job(id = "job-1")))
+        val viewModel = JobDetailsViewModel("job-1", repository)
+        advanceUntilIdle()
+
+        viewModel.onSaveJob()
+        advanceUntilIdle()
+        assertEquals("job-1", repository.savedJobId)
+        assertEquals(true, viewModel.uiState.value.isSaved)
+        assertEquals(
+            JobDetailsActionMessage.JOB_SAVED,
+            viewModel.uiState.value.actionMessage,
+        )
+
+        viewModel.onApplyNow()
+        assertEquals(
+            JobDetailsActionMessage.APPLY_UNAVAILABLE,
+            viewModel.uiState.value.actionMessage,
+        )
+    }
+
     private class FakeJobRepository(
         private val jobResult: JobResult<Job>,
     ) : JobRepository {
         var requestedJobId: String? = null
+        var savedJobId: String? = null
 
         override suspend fun getJob(jobId: String): JobResult<Job> {
             requestedJobId = jobId
@@ -57,5 +80,10 @@ class JobDetailsViewModelTest {
             JobResult.Success(emptyList())
 
         override suspend fun postJob(job: Job): JobResult<Job> = JobResult.Success(job)
+
+        override suspend fun saveJob(jobId: String): JobResult<Unit> {
+            savedJobId = jobId
+            return JobResult.Success(Unit)
+        }
     }
 }

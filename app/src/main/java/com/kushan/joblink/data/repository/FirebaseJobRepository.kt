@@ -48,6 +48,29 @@ class FirebaseJobRepository(
         }
     }
 
+    override suspend fun saveJob(jobId: String): JobResult<Unit> {
+        val uid = firebaseAuth.currentUser?.uid
+            ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
+        if (jobId.isBlank()) return JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        return try {
+            firestore.collection(USERS_COLLECTION)
+                .document(uid)
+                .collection(SAVED_JOBS_COLLECTION)
+                .document(jobId)
+                .set(
+                    mapOf(
+                        FIELD_JOB_ID to jobId,
+                        FIELD_SAVED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+                .await()
+            JobResult.Success(Unit)
+        } catch (exception: Exception) {
+            JobResult.Failure(exception.toJobError())
+        }
+    }
+
     override suspend fun postJob(job: Job): JobResult<Job> {
         val uid = firebaseAuth.currentUser?.uid
             ?: return JobResult.Failure(JobError.NOT_AUTHENTICATED)
@@ -124,6 +147,7 @@ class FirebaseJobRepository(
         const val USERS_COLLECTION = "users"
         const val COMPANIES_COLLECTION = "companies"
         const val JOBS_COLLECTION = "jobs"
+        const val SAVED_JOBS_COLLECTION = "savedJobs"
         const val JOB_FEED_LIMIT = 50L
         const val FIELD_ROLE = "role"
         const val FIELD_ID = "id"
@@ -146,5 +170,7 @@ class FirebaseJobRepository(
         const val FIELD_CREATED_AT = "createdAt"
         const val FIELD_UPDATED_AT = "updatedAt"
         const val FIELD_ACTIVE = "active"
+        const val FIELD_JOB_ID = "jobId"
+        const val FIELD_SAVED_AT = "savedAt"
     }
 }

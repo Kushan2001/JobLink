@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,6 +37,7 @@ import com.kushan.joblink.data.model.Job
 import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.ui.theme.JobLinkSpacing
+import com.kushan.joblink.viewmodel.JobDetailsActionMessage
 import com.kushan.joblink.viewmodel.JobDetailsViewModel
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -50,6 +55,12 @@ fun JobDetailsScreen(
         uiState.isLoading -> JobDetailsLoading(modifier)
         job != null -> JobDetailsContent(
             job = job,
+            isSavingJob = uiState.isSavingJob,
+            isSaved = uiState.isSaved,
+            actionError = uiState.actionError,
+            actionMessage = uiState.actionMessage,
+            onSaveJob = viewModel::onSaveJob,
+            onApplyNow = viewModel::onApplyNow,
             onBack = onBack,
             modifier = modifier,
         )
@@ -66,6 +77,12 @@ fun JobDetailsScreen(
 @Composable
 private fun JobDetailsContent(
     job: Job,
+    isSavingJob: Boolean,
+    isSaved: Boolean,
+    actionError: com.kushan.joblink.data.repository.JobError?,
+    actionMessage: JobDetailsActionMessage?,
+    onSaveJob: () -> Unit,
+    onApplyNow: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,12 +103,14 @@ private fun JobDetailsContent(
                 Text(text = stringResource(R.string.back))
             }
             Text(
-                text = job.title,
+                text = job.title.ifBlank { stringResource(R.string.job_details) },
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = job.companyName,
+                text = job.companyName.ifBlank {
+                    stringResource(R.string.company_not_specified)
+                },
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -100,7 +119,12 @@ private fun JobDetailsContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(JobLinkSpacing.small),
             ) {
-                Text(text = job.location, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = job.location.ifBlank {
+                        stringResource(R.string.location_not_specified)
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
                 Text(text = "•", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     text = stringResource(job.workMode.labelResource()),
@@ -111,14 +135,13 @@ private fun JobDetailsContent(
                 text = stringResource(job.jobType.labelResource()),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            job.formattedSalary()?.let { salary ->
-                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
-                Text(
-                    text = salary,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
+            Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+            Text(
+                text = job.formattedSalary()
+                    ?: stringResource(R.string.salary_not_specified),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+            )
             job.createdAt?.let { timestamp ->
                 Spacer(modifier = Modifier.height(JobLinkSpacing.small))
                 Text(
@@ -131,24 +154,130 @@ private fun JobDetailsContent(
                 )
             }
 
-            DetailSection(R.string.about_role, job.description)
-            DetailSection(R.string.job_category, job.category)
-            DetailSection(R.string.experience, job.experienceLevel)
-            DetailSection(R.string.required_skills, job.requiredSkills.joinToString(" • "))
-            DetailSection(R.string.requirements, job.requirements.joinToString("\n• ", prefix = "• "))
-            if (job.benefits.isNotEmpty()) {
-                DetailSection(R.string.benefits, job.benefits.joinToString("\n• ", prefix = "• "))
-            }
-            job.applicationDeadline?.let { timestamp ->
-                DetailSection(
-                    R.string.application_deadline,
-                    stringResource(
-                        R.string.application_closes,
-                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(timestamp.toDate()),
+            Spacer(modifier = Modifier.height(JobLinkSpacing.large))
+            OutlinedButton(
+                onClick = onSaveJob,
+                enabled = !isSavingJob && !isSaved,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(
+                        when {
+                            isSavingJob -> R.string.saving_job
+                            isSaved -> R.string.job_saved
+                            else -> R.string.save_job
+                        },
                     ),
                 )
             }
+            Button(
+                onClick = onApplyNow,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(R.string.apply_now))
+            }
+
+            actionMessage?.let { message ->
+                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+                JobActionMessage(message = message)
+            }
+            actionError?.let { error ->
+                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+                JobActionErrorMessage(error = error)
+            }
+
+            DetailSection(
+                R.string.about_role,
+                job.description.ifBlank { stringResource(R.string.description_not_provided) },
+            )
+            DetailSection(
+                R.string.job_category,
+                job.category.ifBlank { stringResource(R.string.not_provided) },
+            )
+            DetailSection(
+                R.string.experience,
+                job.experienceLevel.ifBlank { stringResource(R.string.not_provided) },
+            )
+            DetailSection(
+                R.string.required_skills,
+                job.requiredSkills.toInlineListOr(
+                    fallback = stringResource(R.string.skills_not_specified),
+                ),
+            )
+            DetailSection(
+                R.string.requirements,
+                job.requirements.toBulletListOr(
+                    fallback = stringResource(R.string.requirements_not_specified),
+                ),
+            )
+            DetailSection(
+                R.string.benefits,
+                job.benefits.toBulletListOr(
+                    fallback = stringResource(R.string.benefits_not_specified),
+                ),
+            )
+            DetailSection(
+                R.string.application_deadline,
+                job.applicationDeadline?.let { timestamp ->
+                    stringResource(
+                        R.string.application_closes,
+                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(timestamp.toDate()),
+                    )
+                } ?: stringResource(R.string.deadline_not_specified),
+            )
         }
+    }
+}
+
+@Composable
+private fun JobActionMessage(message: JobDetailsActionMessage) {
+    val text = when (message) {
+        JobDetailsActionMessage.JOB_SAVED -> R.string.job_saved_confirmation
+        JobDetailsActionMessage.APPLY_UNAVAILABLE -> R.string.apply_unavailable
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Text(
+            text = stringResource(text),
+            modifier = Modifier.padding(JobLinkSpacing.medium),
+        )
+    }
+}
+
+@Composable
+private fun JobActionErrorMessage(
+    error: com.kushan.joblink.data.repository.JobError,
+) {
+    val text = when (error) {
+        com.kushan.joblink.data.repository.JobError.NOT_AUTHENTICATED -> {
+            R.string.save_job_error_auth
+        }
+
+        com.kushan.joblink.data.repository.JobError.PERMISSION_DENIED -> {
+            R.string.save_job_error_permission
+        }
+
+        com.kushan.joblink.data.repository.JobError.NETWORK -> R.string.save_job_error_network
+        else -> R.string.save_job_error_unknown
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Assertive },
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Text(
+            text = stringResource(text),
+            modifier = Modifier.padding(JobLinkSpacing.medium),
+        )
     }
 }
 
@@ -222,20 +351,28 @@ private fun Job.formattedSalary(): String? {
             currency,
             numberFormat.format(salaryMin),
             numberFormat.format(salaryMax),
-        )
+        ).trim()
 
         salaryMin != null -> stringResource(
             R.string.salary_from,
             currency,
             numberFormat.format(salaryMin),
-        )
+        ).trim()
 
         else -> stringResource(
             R.string.salary_up_to,
             currency,
             numberFormat.format(salaryMax),
-        )
+        ).trim()
     }
+}
+
+private fun List<String>.toInlineListOr(fallback: String): String =
+    filter(String::isNotBlank).joinToString(" • ").ifBlank { fallback }
+
+private fun List<String>.toBulletListOr(fallback: String): String {
+    val entries = filter(String::isNotBlank)
+    return if (entries.isEmpty()) fallback else entries.joinToString("\n• ", prefix = "• ")
 }
 
 @StringRes

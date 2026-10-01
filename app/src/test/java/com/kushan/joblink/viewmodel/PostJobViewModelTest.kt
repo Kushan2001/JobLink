@@ -166,5 +166,8 @@ class PostJobViewModelTest {
 
         override suspend fun getJob(jobId: String): JobResult<Job> =
             JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        override suspend fun saveJob(jobId: String): JobResult<Unit> =
+            JobResult.Success(Unit)
     }
 }
