@@ -26,7 +26,6 @@ data class JobDetailsUiState(
 enum class JobDetailsActionMessage {
     JOB_SAVED,
     JOB_UNSAVED,
-    APPLY_UNAVAILABLE,
 }
 
 class JobDetailsViewModel(
@@ -86,15 +85,6 @@ class JobDetailsViewModel(
                     }
                 }
             }
-        }
-    }
-
-    fun onApplyNow() {
-        _uiState.update {
-            it.copy(
-                actionError = null,
-                actionMessage = JobDetailsActionMessage.APPLY_UNAVAILABLE,
-            )
         }
     }
 

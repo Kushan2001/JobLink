@@ -11,10 +11,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.kushan.joblink.data.model.UserRole
+import com.kushan.joblink.data.repository.ApplicationRepository
 import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
+import com.kushan.joblink.ui.screens.ApplicationScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
 import com.kushan.joblink.ui.screens.HomeScreen
 import com.kushan.joblink.ui.screens.JobDetailsScreen
@@ -26,6 +28,7 @@ import com.kushan.joblink.ui.screens.RoleSelectionScreen
 import com.kushan.joblink.ui.screens.SavedJobsScreen
 import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
+import com.kushan.joblink.viewmodel.ApplicationViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 import com.kushan.joblink.viewmodel.HomeViewModel
 import com.kushan.joblink.viewmodel.JobDetailsViewModel
@@ -37,6 +40,7 @@ import com.kushan.joblink.viewmodel.SavedJobsViewModel
 fun JobLinkNavHost(
     navController: NavHostController,
     authViewModel: AuthViewModel,
+    applicationRepository: ApplicationRepository,
     employerProfileRepository: EmployerProfileRepository,
     jobSeekerProfileRepository: JobSeekerProfileRepository,
     jobRepository: JobRepository,
@@ -190,7 +194,30 @@ fun JobLinkNavHost(
                 )
                 JobDetailsScreen(
                     viewModel = detailsViewModel,
+                    onApplyNow = { jobId ->
+                        navController.navigate(ApplicationDestination(jobId))
+                    },
                     onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<ApplicationDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
+                val destination = backStackEntry.toRoute<ApplicationDestination>()
+                val applicationViewModel: ApplicationViewModel = viewModel(
+                    factory = ApplicationViewModel.Factory(
+                        jobId = destination.jobId,
+                        applicationRepository = applicationRepository,
+                    ),
+                )
+                ApplicationScreen(
+                    viewModel = applicationViewModel,
+                    onBack = { navController.popBackStack() },
+                    onProfile = { navController.navigate(JobSeekerProfileDestination) },
+                    onDone = { navController.popBackStack() },
                 )
             } else {
                 AuthenticationLoadingScreen()

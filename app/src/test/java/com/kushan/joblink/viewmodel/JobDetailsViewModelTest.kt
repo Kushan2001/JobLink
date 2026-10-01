@@ -44,7 +44,7 @@ class JobDetailsViewModelTest {
     }
 
     @Test
-    fun saveAndUnsaveTogglePersistedStateAndApplyShowsPlaceholderFeedback() = runTest {
+    fun saveAndUnsaveTogglePersistedState() = runTest {
         val repository = FakeJobRepository(JobResult.Success(Job(id = "job-1")))
         val viewModel = JobDetailsViewModel("job-1", repository)
         advanceUntilIdle()
@@ -64,12 +64,6 @@ class JobDetailsViewModelTest {
         assertEquals(false, viewModel.uiState.value.isSaved)
         assertEquals(
             JobDetailsActionMessage.JOB_UNSAVED,
-            viewModel.uiState.value.actionMessage,
-        )
-
-        viewModel.onApplyNow()
-        assertEquals(
-            JobDetailsActionMessage.APPLY_UNAVAILABLE,
             viewModel.uiState.value.actionMessage,
         )
     }
