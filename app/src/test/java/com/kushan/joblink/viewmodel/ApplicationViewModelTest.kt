@@ -106,6 +106,14 @@ class ApplicationViewModelTest {
         var submitResult: ApplicationResult<JobApplication> =
             ApplicationResult.Failure(ApplicationError.UNKNOWN)
 
+        override suspend fun getMyApplications(): ApplicationResult<List<JobApplication>> =
+            ApplicationResult.Success(emptyList())
+
+        override suspend fun getMyApplication(
+            applicationId: String,
+        ): ApplicationResult<JobApplication> =
+            ApplicationResult.Failure(ApplicationError.APPLICATION_NOT_FOUND)
+
         override suspend fun getApplicationDraft(
             jobId: String,
         ): ApplicationResult<ApplicationDraft> {

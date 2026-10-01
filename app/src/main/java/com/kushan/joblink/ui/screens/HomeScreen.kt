@@ -60,6 +60,7 @@ import com.kushan.joblink.viewmodel.HomeViewModel
 fun HomeScreen(
     viewModel: HomeViewModel,
     onJobClick: (String) -> Unit,
+    onApplications: () -> Unit,
     onSavedJobs: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
@@ -84,6 +85,7 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeHeader(
+            onApplications = onApplications,
             onSavedJobs = onSavedJobs,
             onProfile = onProfile,
             onLogout = onLogout,
@@ -316,6 +318,7 @@ private fun WorkMode.displayLabel(): String = stringResource(
 
 @Composable
 private fun HomeHeader(
+    onApplications: () -> Unit,
     onSavedJobs: () -> Unit,
     onProfile: () -> Unit,
     onLogout: () -> Unit,
@@ -329,10 +332,13 @@ private fun HomeHeader(
                 vertical = JobLinkSpacing.medium,
             ),
     ) {
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
+            TextButton(onClick = onApplications) {
+                Text(text = stringResource(R.string.my_applications))
+            }
             TextButton(onClick = onSavedJobs) {
                 Text(text = stringResource(R.string.saved_jobs))
             }

@@ -16,11 +16,13 @@ import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
+import com.kushan.joblink.ui.screens.ApplicationDetailsScreen
 import com.kushan.joblink.ui.screens.ApplicationScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
 import com.kushan.joblink.ui.screens.HomeScreen
 import com.kushan.joblink.ui.screens.JobDetailsScreen
 import com.kushan.joblink.ui.screens.LoginScreen
+import com.kushan.joblink.ui.screens.MyApplicationsScreen
 import com.kushan.joblink.ui.screens.PostJobScreen
 import com.kushan.joblink.ui.screens.JobSeekerProfileScreen
 import com.kushan.joblink.ui.screens.RegisterScreen
@@ -28,11 +30,13 @@ import com.kushan.joblink.ui.screens.RoleSelectionScreen
 import com.kushan.joblink.ui.screens.SavedJobsScreen
 import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
+import com.kushan.joblink.viewmodel.ApplicationDetailsViewModel
 import com.kushan.joblink.viewmodel.ApplicationViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 import com.kushan.joblink.viewmodel.HomeViewModel
 import com.kushan.joblink.viewmodel.JobDetailsViewModel
 import com.kushan.joblink.viewmodel.JobSeekerProfileViewModel
+import com.kushan.joblink.viewmodel.MyApplicationsViewModel
 import com.kushan.joblink.viewmodel.PostJobViewModel
 import com.kushan.joblink.viewmodel.SavedJobsViewModel
 
@@ -130,6 +134,9 @@ fun JobLinkNavHost(
                         onJobClick = { jobId ->
                             navController.navigate(JobDetailsDestination(jobId))
                         },
+                        onApplications = {
+                            navController.navigate(MyApplicationsDestination)
+                        },
                         onSavedJobs = { navController.navigate(SavedJobsDestination) },
                         onProfile = { navController.navigate(JobSeekerProfileDestination) },
                         onLogout = {
@@ -154,6 +161,44 @@ fun JobLinkNavHost(
                 SavedJobsScreen(
                     viewModel = savedJobsViewModel,
                     onJobClick = { jobId ->
+                        navController.navigate(JobDetailsDestination(jobId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<MyApplicationsDestination> {
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
+                val myApplicationsViewModel: MyApplicationsViewModel = viewModel(
+                    factory = MyApplicationsViewModel.Factory(applicationRepository),
+                )
+                MyApplicationsScreen(
+                    viewModel = myApplicationsViewModel,
+                    onApplicationClick = { applicationId ->
+                        navController.navigate(ApplicationDetailsDestination(applicationId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<ApplicationDetailsDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.JOB_SEEKER) {
+                val destination = backStackEntry.toRoute<ApplicationDetailsDestination>()
+                val detailsViewModel: ApplicationDetailsViewModel = viewModel(
+                    factory = ApplicationDetailsViewModel.Factory(
+                        applicationId = destination.applicationId,
+                        applicationRepository = applicationRepository,
+                    ),
+                )
+                ApplicationDetailsScreen(
+                    viewModel = detailsViewModel,
+                    onViewJob = { jobId ->
                         navController.navigate(JobDetailsDestination(jobId))
                     },
                     onBack = { navController.popBackStack() },

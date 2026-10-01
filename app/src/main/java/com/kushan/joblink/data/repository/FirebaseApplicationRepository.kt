@@ -17,6 +17,61 @@ class FirebaseApplicationRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) : ApplicationRepository {
 
+    override suspend fun getMyApplications(): ApplicationResult<List<JobApplication>> {
+        val applicantId = firebaseAuth.currentUser?.uid
+            ?: return ApplicationResult.Failure(ApplicationError.NOT_AUTHENTICATED)
+
+        return try {
+            val profileError = userDocument(applicantId).get().await().jobSeekerProfileError()
+            if (profileError != null) return ApplicationResult.Failure(profileError)
+
+            val applications = firestore.collection(APPLICATIONS_COLLECTION)
+                .whereEqualTo(FIELD_APPLICANT_ID, applicantId)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { document ->
+                    document.toObject(JobApplication::class.java)?.copy(
+                        applicationId = document.id,
+                    )
+                }
+                .sortedByDescending { it.submittedAt?.seconds ?: Long.MIN_VALUE }
+            ApplicationResult.Success(applications)
+        } catch (exception: Exception) {
+            ApplicationResult.Failure(exception.toApplicationError())
+        }
+    }
+
+    override suspend fun getMyApplication(
+        applicationId: String,
+    ): ApplicationResult<JobApplication> {
+        val applicantId = firebaseAuth.currentUser?.uid
+            ?: return ApplicationResult.Failure(ApplicationError.NOT_AUTHENTICATED)
+        if (applicationId.isBlank()) {
+            return ApplicationResult.Failure(ApplicationError.APPLICATION_NOT_FOUND)
+        }
+
+        return try {
+            val profileError = userDocument(applicantId).get().await().jobSeekerProfileError()
+            if (profileError != null) return ApplicationResult.Failure(profileError)
+
+            val document = firestore.collection(APPLICATIONS_COLLECTION)
+                .document(applicationId)
+                .get()
+                .await()
+            val application = document.toObject(JobApplication::class.java)?.copy(
+                applicationId = document.id,
+            )
+            if (application == null || application.applicantId != applicantId) {
+                ApplicationResult.Failure(ApplicationError.APPLICATION_NOT_FOUND)
+            } else {
+                ApplicationResult.Success(application)
+            }
+        } catch (exception: Exception) {
+            ApplicationResult.Failure(exception.toApplicationError())
+        }
+    }
+
     override suspend fun getApplicationDraft(
         jobId: String,
     ): ApplicationResult<ApplicationDraft> {
@@ -95,6 +150,8 @@ class FirebaseApplicationRepository(
                     jobId = job.id,
                     employerId = job.employerId,
                     applicantId = applicantId,
+                    jobTitle = job.title,
+                    companyName = job.companyName,
                     status = ApplicationStatus.SUBMITTED,
                     coverMessage = coverMessage.trim().takeIf(String::isNotEmpty),
                     cvReference = cvReference,
@@ -127,6 +184,8 @@ class FirebaseApplicationRepository(
         FIELD_JOB_ID to jobId,
         FIELD_EMPLOYER_ID to employerId,
         FIELD_APPLICANT_ID to applicantId,
+        FIELD_JOB_TITLE to jobTitle,
+        FIELD_COMPANY_NAME to companyName,
         FIELD_SUBMITTED_AT to FieldValue.serverTimestamp(),
         FIELD_STATUS to status.name,
         FIELD_COVER_MESSAGE to coverMessage,
@@ -172,6 +231,8 @@ class FirebaseApplicationRepository(
         const val FIELD_JOB_ID = "jobId"
         const val FIELD_EMPLOYER_ID = "employerId"
         const val FIELD_APPLICANT_ID = "applicantId"
+        const val FIELD_JOB_TITLE = "jobTitle"
+        const val FIELD_COMPANY_NAME = "companyName"
         const val FIELD_SUBMITTED_AT = "submittedAt"
         const val FIELD_STATUS = "status"
         const val FIELD_COVER_MESSAGE = "coverMessage"

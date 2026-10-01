@@ -8,6 +8,7 @@ enum class ApplicationError {
     PROFILE_NOT_FOUND,
     WRONG_ROLE,
     JOB_NOT_FOUND,
+    APPLICATION_NOT_FOUND,
     CV_REQUIRED,
     ALREADY_APPLIED,
     PERMISSION_DENIED,
@@ -21,6 +22,10 @@ sealed interface ApplicationResult<out T> {
 }
 
 interface ApplicationRepository {
+    suspend fun getMyApplications(): ApplicationResult<List<JobApplication>>
+
+    suspend fun getMyApplication(applicationId: String): ApplicationResult<JobApplication>
+
     suspend fun getApplicationDraft(jobId: String): ApplicationResult<ApplicationDraft>
 
     suspend fun submitApplication(
