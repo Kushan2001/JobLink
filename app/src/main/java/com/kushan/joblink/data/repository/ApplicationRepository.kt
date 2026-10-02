@@ -29,6 +29,10 @@ sealed interface ApplicationResult<out T> {
 }
 
 interface ApplicationRepository {
+    suspend fun getRecentEmployerApplications(
+        limit: Long,
+    ): ApplicationResult<List<JobApplication>>
+
     suspend fun getEmployerApplications(jobId: String): ApplicationResult<EmployerApplicationsData>
 
     suspend fun getEmployerApplication(applicationId: String): ApplicationResult<JobApplication>

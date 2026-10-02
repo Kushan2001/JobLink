@@ -51,6 +51,7 @@ fun EmployerProfileScreen(
     viewModel: EmployerProfileViewModel,
     onPostJob: () -> Unit,
     onMyJobs: () -> Unit,
+    onBack: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,6 +87,7 @@ fun EmployerProfileScreen(
             onEdit = viewModel::startEditing,
             onPostJob = onPostJob,
             onMyJobs = onMyJobs,
+            onBack = onBack,
             onLogout = onLogout,
             modifier = modifier,
         )
@@ -99,10 +101,14 @@ private fun CompanyProfileViewContent(
     onEdit: () -> Unit,
     onPostJob: () -> Unit,
     onMyJobs: () -> Unit,
+    onBack: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     CompanyProfilePage(modifier = modifier) {
+        TextButton(onClick = onBack) {
+            Text(text = stringResource(R.string.back))
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

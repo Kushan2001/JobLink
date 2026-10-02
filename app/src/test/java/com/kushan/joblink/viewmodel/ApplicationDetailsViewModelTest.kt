@@ -60,6 +60,10 @@ class ApplicationDetailsViewModelTest {
     ) : ApplicationRepository {
         var requestedApplicationId: String? = null
 
+        override suspend fun getRecentEmployerApplications(
+            limit: Long,
+        ): ApplicationResult<List<JobApplication>> = ApplicationResult.Success(emptyList())
+
         override suspend fun getEmployerApplications(jobId: String) =
             ApplicationResult.Success(EmployerApplicationsData(jobId, "", emptyList()))
 

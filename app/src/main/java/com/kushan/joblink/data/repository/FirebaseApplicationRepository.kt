@@ -5,6 +5,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageException
 import com.kushan.joblink.data.model.ApplicationDraft
@@ -23,6 +24,35 @@ class FirebaseApplicationRepository(
     private val storage: FirebaseStorage = FirebaseStorage.getInstance(),
     private val cacheDirectory: File? = null,
 ) : ApplicationRepository {
+
+    override suspend fun getRecentEmployerApplications(
+        limit: Long,
+    ): ApplicationResult<List<JobApplication>> {
+        val employerId = firebaseAuth.currentUser?.uid
+            ?: return ApplicationResult.Failure(ApplicationError.NOT_AUTHENTICATED)
+        if (limit <= 0L) return ApplicationResult.Success(emptyList())
+
+        return try {
+            val profileError = userDocument(employerId).get().await().employerProfileError()
+            if (profileError != null) return ApplicationResult.Failure(profileError)
+
+            val applications = firestore.collection(APPLICATIONS_COLLECTION)
+                .whereEqualTo(FIELD_EMPLOYER_ID, employerId)
+                .orderBy(FIELD_SUBMITTED_AT, Query.Direction.DESCENDING)
+                .limit(limit)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { document ->
+                    document.toObject(JobApplication::class.java)?.copy(
+                        applicationId = document.id,
+                    )
+                }
+            ApplicationResult.Success(applications)
+        } catch (exception: Exception) {
+            ApplicationResult.Failure(exception.toApplicationError())
+        }
+    }
 
     override suspend fun getEmployerApplications(
         jobId: String,

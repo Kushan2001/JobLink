@@ -40,6 +40,9 @@ data class ApplicationDestination(val jobId: String)
 data object EmployerHomeDestination
 
 @Serializable
+data object EmployerProfileDestination
+
+@Serializable
 data object EmployerJobsDestination
 
 @Serializable

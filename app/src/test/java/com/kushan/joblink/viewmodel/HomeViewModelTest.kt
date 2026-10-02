@@ -116,6 +116,25 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun categoriesComeFromLoadedJobsAndCanToggleTheExistingFilter() = runTest {
+        val repository = FakeJobRepository(
+            mutableListOf(JobResult.Success(filterableJobs())),
+        )
+        val viewModel = HomeViewModel(repository)
+        advanceUntilIdle()
+
+        assertEquals(listOf("Engineering", "Design"), viewModel.uiState.value.categories)
+
+        viewModel.onCategorySelected("Engineering")
+        assertEquals(listOf("android"), viewModel.uiState.value.jobs.map(Job::id))
+
+        viewModel.onCategorySelected("Engineering")
+        assertEquals("", viewModel.uiState.value.categoryFilter)
+        assertEquals(2, viewModel.uiState.value.jobs.size)
+        assertEquals(1, repository.activeJobCalls)
+    }
+
+    @Test
     fun textAndEnumFiltersCanBeCombinedAndCleared() = runTest {
         val jobs = filterableJobs()
         val repository = FakeJobRepository(
