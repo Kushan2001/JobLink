@@ -206,6 +206,20 @@ class HomeViewModelTest {
         var activeJobCalls = 0
         var savedJobCalls = 0
 
+        override suspend fun getEmployerJobs(): JobResult<List<Job>> =
+            JobResult.Success(emptyList())
+
+        override suspend fun getEmployerJob(jobId: String): JobResult<Job> =
+            JobResult.Failure(JobError.JOB_NOT_FOUND)
+
+        override suspend fun updateEmployerJob(jobId: String, job: Job): JobResult<Job> =
+            JobResult.Success(job)
+
+        override suspend fun setEmployerJobActive(
+            jobId: String,
+            active: Boolean,
+        ): JobResult<Job> = JobResult.Failure(JobError.JOB_NOT_FOUND)
+
         override suspend fun getActiveJobs(): JobResult<List<Job>> {
             activeJobCalls += 1
             return activeJobResults.removeAt(0)

@@ -157,6 +157,11 @@ class FirebaseApplicationRepository(
                     cvReference = cvReference,
                 )
                 transaction.set(applicationReference, submittedApplication.toFirestoreData())
+                transaction.update(
+                    jobReference,
+                    FIELD_APPLICANT_COUNT,
+                    FieldValue.increment(1),
+                )
                 submittedApplication
             }.await()
             ApplicationResult.Success(application)
@@ -237,5 +242,6 @@ class FirebaseApplicationRepository(
         const val FIELD_STATUS = "status"
         const val FIELD_COVER_MESSAGE = "coverMessage"
         const val FIELD_CV_REFERENCE = "cvReference"
+        const val FIELD_APPLICANT_COUNT = "applicantCount"
     }
 }

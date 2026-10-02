@@ -21,6 +21,14 @@ sealed interface JobResult<out T> {
 interface JobRepository {
     suspend fun postJob(job: Job): JobResult<Job>
 
+    suspend fun getEmployerJobs(): JobResult<List<Job>>
+
+    suspend fun getEmployerJob(jobId: String): JobResult<Job>
+
+    suspend fun updateEmployerJob(jobId: String, job: Job): JobResult<Job>
+
+    suspend fun setEmployerJobActive(jobId: String, active: Boolean): JobResult<Job>
+
     suspend fun getActiveJobs(): JobResult<List<Job>>
 
     suspend fun getJob(jobId: String): JobResult<Job>
