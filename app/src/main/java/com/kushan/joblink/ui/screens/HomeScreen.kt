@@ -6,12 +6,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -51,6 +54,7 @@ import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.ui.components.JobCard
+import com.kushan.joblink.ui.components.DashboardShortcutCard
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.HomeUiState
 import com.kushan.joblink.viewmodel.HomeViewModel
@@ -59,6 +63,7 @@ import com.kushan.joblink.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    userName: String,
     onJobClick: (String) -> Unit,
     onApplications: () -> Unit,
     onSavedJobs: () -> Unit,
@@ -85,6 +90,7 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeHeader(
+            userName = userName,
             onApplications = onApplications,
             onSavedJobs = onSavedJobs,
             onProfile = onProfile,
@@ -99,6 +105,11 @@ fun HomeScreen(
             onJobTypeChanged = viewModel::onJobTypeFilterChanged,
             onWorkModeChanged = viewModel::onWorkModeFilterChanged,
             onClearFilters = viewModel::clearFilters,
+        )
+        JobCategoryRow(
+            categories = uiState.categories,
+            selectedCategory = uiState.categoryFilter,
+            onCategorySelected = viewModel::onCategorySelected,
         )
         when {
             uiState.isLoading -> JobFeedLoading()
@@ -318,6 +329,7 @@ private fun WorkMode.displayLabel(): String = stringResource(
 
 @Composable
 private fun HomeHeader(
+    userName: String,
     onApplications: () -> Unit,
     onSavedJobs: () -> Unit,
     onProfile: () -> Unit,
@@ -336,12 +348,6 @@ private fun HomeHeader(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onApplications) {
-                Text(text = stringResource(R.string.my_applications))
-            }
-            TextButton(onClick = onSavedJobs) {
-                Text(text = stringResource(R.string.saved_jobs))
-            }
             TextButton(onClick = onProfile) {
                 Text(text = stringResource(R.string.profile))
             }
@@ -350,7 +356,10 @@ private fun HomeHeader(
             }
         }
         Text(
-            text = stringResource(R.string.home_title),
+            text = stringResource(
+                R.string.job_seeker_home_greeting,
+                userName.substringBefore(" ").ifBlank { stringResource(R.string.job_seeker) },
+            ),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
@@ -359,6 +368,62 @@ private fun HomeHeader(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
+        ) {
+            DashboardShortcutCard(
+                title = stringResource(R.string.saved_jobs),
+                supportingText = stringResource(R.string.saved_jobs_shortcut),
+                onClick = onSavedJobs,
+                modifier = Modifier.weight(1f),
+            )
+            DashboardShortcutCard(
+                title = stringResource(R.string.my_applications),
+                supportingText = stringResource(R.string.applications_shortcut),
+                onClick = onApplications,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun JobCategoryRow(
+    categories: List<String>,
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit,
+) {
+    if (categories.isEmpty()) return
+    Column(
+        modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),
+    ) {
+        Text(
+            text = stringResource(R.string.job_categories),
+            modifier = Modifier.padding(
+                start = JobLinkSpacing.large,
+                end = JobLinkSpacing.large,
+                top = JobLinkSpacing.medium,
+            ),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = JobLinkSpacing.large),
+            horizontalArrangement = Arrangement.spacedBy(JobLinkSpacing.small),
+        ) {
+            categories.forEach { category ->
+                FilterChip(
+                    selected = category.equals(selectedCategory, ignoreCase = true),
+                    onClick = { onCategorySelected(category) },
+                    label = { Text(category) },
+                )
+            }
+        }
     }
 }
 
@@ -392,7 +457,7 @@ private fun JobFeed(
         } else {
             item {
                 Text(
-                    text = stringResource(R.string.active_jobs),
+                    text = stringResource(R.string.recommended_recent_jobs),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )

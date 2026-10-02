@@ -29,6 +29,14 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val error: JobError? = null,
 ) {
+    val categories: List<String>
+        get() = allJobs
+            .map(Job::category)
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinctBy { it.lowercase() }
+            .take(8)
+
     val hasActiveFilters: Boolean
         get() = searchQuery.isNotBlank() ||
             categoryFilter.isNotBlank() ||
@@ -71,6 +79,12 @@ class HomeViewModel(
 
     fun onCategoryFilterChanged(category: String) {
         updateFilters { copy(categoryFilter = category) }
+    }
+
+    fun onCategorySelected(category: String) {
+        updateFilters {
+            copy(categoryFilter = category.takeUnless { it == categoryFilter }.orEmpty())
+        }
     }
 
     fun onLocationFilterChanged(location: String) {

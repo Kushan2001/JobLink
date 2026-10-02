@@ -106,6 +106,10 @@ class MyApplicationsViewModelTest {
     private class FakeApplicationRepository(
         private val applicationResults: MutableList<ApplicationResult<List<JobApplication>>>,
     ) : ApplicationRepository {
+        override suspend fun getRecentEmployerApplications(
+            limit: Long,
+        ): ApplicationResult<List<JobApplication>> = ApplicationResult.Success(emptyList())
+
         override suspend fun getEmployerApplications(jobId: String) =
             ApplicationResult.Success(EmployerApplicationsData(jobId, "", emptyList()))
 

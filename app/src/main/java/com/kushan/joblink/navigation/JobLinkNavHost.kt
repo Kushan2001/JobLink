@@ -21,6 +21,7 @@ import com.kushan.joblink.ui.screens.ApplicationScreen
 import com.kushan.joblink.ui.screens.ApplicantDetailsScreen
 import com.kushan.joblink.ui.screens.EmployerApplicationsScreen
 import com.kushan.joblink.ui.screens.EmployerJobDetailsScreen
+import com.kushan.joblink.ui.screens.EmployerHomeScreen
 import com.kushan.joblink.ui.screens.EmployerJobsScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
 import com.kushan.joblink.ui.screens.HomeScreen
@@ -39,6 +40,7 @@ import com.kushan.joblink.viewmodel.ApplicationViewModel
 import com.kushan.joblink.viewmodel.ApplicantDetailsViewModel
 import com.kushan.joblink.viewmodel.EmployerApplicationsViewModel
 import com.kushan.joblink.viewmodel.EmployerJobDetailsViewModel
+import com.kushan.joblink.viewmodel.EmployerHomeViewModel
 import com.kushan.joblink.viewmodel.EmployerJobsViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 import com.kushan.joblink.viewmodel.HomeViewModel
@@ -139,6 +141,7 @@ fun JobLinkNavHost(
                     )
                     HomeScreen(
                         viewModel = homeViewModel,
+                        userName = profile.fullName,
                         onJobClick = { jobId ->
                             navController.navigate(JobDetailsDestination(jobId))
                         },
@@ -279,16 +282,26 @@ fun JobLinkNavHost(
 
         composable<EmployerHomeDestination> {
             val profile = authUiState.currentUser
-            if (profile == null) {
+            if (profile?.role != UserRole.EMPLOYER) {
                 AuthenticationLoadingScreen()
             } else {
-                val profileViewModel: EmployerProfileViewModel = viewModel(
-                    factory = EmployerProfileViewModel.Factory(employerProfileRepository),
+                val employerHomeViewModel: EmployerHomeViewModel = viewModel(
+                    factory = EmployerHomeViewModel.Factory(
+                        employerProfileRepository = employerProfileRepository,
+                        jobRepository = jobRepository,
+                        applicationRepository = applicationRepository,
+                    ),
                 )
-                EmployerProfileScreen(
-                    viewModel = profileViewModel,
+                EmployerHomeScreen(
+                    viewModel = employerHomeViewModel,
                     onPostJob = { navController.navigate(PostJobDestination) },
                     onMyJobs = { navController.navigate(EmployerJobsDestination) },
+                    onApplicantClick = { applicationId ->
+                        navController.navigate(ApplicantDetailsDestination(applicationId))
+                    },
+                    onCompanyProfile = {
+                        navController.navigate(EmployerProfileDestination)
+                    },
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(WelcomeDestination) {
@@ -297,6 +310,29 @@ fun JobLinkNavHost(
                         }
                     },
                 )
+            }
+        }
+
+        composable<EmployerProfileDestination> {
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val profileViewModel: EmployerProfileViewModel = viewModel(
+                    factory = EmployerProfileViewModel.Factory(employerProfileRepository),
+                )
+                EmployerProfileScreen(
+                    viewModel = profileViewModel,
+                    onPostJob = { navController.navigate(PostJobDestination) },
+                    onMyJobs = { navController.navigate(EmployerJobsDestination) },
+                    onBack = { navController.popBackStack() },
+                    onLogout = {
+                        authViewModel.logout()
+                        navController.navigate(WelcomeDestination) {
+                            popUpTo<EmployerHomeDestination> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            } else {
+                AuthenticationLoadingScreen()
             }
         }
 
