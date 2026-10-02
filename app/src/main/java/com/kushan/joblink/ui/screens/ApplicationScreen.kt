@@ -269,6 +269,11 @@ private fun ApplicationErrorMessage(error: ApplicationError) {
         ApplicationError.JOB_NOT_FOUND -> R.string.application_error_job
         ApplicationError.APPLICATION_NOT_FOUND -> R.string.application_details_not_found
         ApplicationError.CV_REQUIRED -> R.string.application_error_cv_required
+        ApplicationError.CV_NOT_AVAILABLE,
+        ApplicationError.CV_DOWNLOAD_FAILED,
+        ApplicationError.CV_VIEWER_UNAVAILABLE,
+        ApplicationError.INVALID_STATUS,
+        -> R.string.application_error_unknown
         ApplicationError.ALREADY_APPLIED -> R.string.application_error_duplicate
         ApplicationError.PERMISSION_DENIED -> R.string.application_error_permission
         ApplicationError.NETWORK -> R.string.application_error_network

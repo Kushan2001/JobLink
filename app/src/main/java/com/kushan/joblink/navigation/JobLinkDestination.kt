@@ -46,6 +46,12 @@ data object EmployerJobsDestination
 data class EmployerJobDetailsDestination(val jobId: String)
 
 @Serializable
+data class EmployerApplicationsDestination(val jobId: String)
+
+@Serializable
+data class ApplicantDetailsDestination(val applicationId: String)
+
+@Serializable
 data class EditJobDestination(val jobId: String)
 
 @Serializable

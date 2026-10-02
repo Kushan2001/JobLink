@@ -11,7 +11,22 @@ service firebase.storage {
           ).data.role == 'JOB_SEEKER';
       }
 
-      allow read: if isOwnerJobSeeker();
+      function hasEmployerCvAccess() {
+        let access = firestore.get(
+          /databases/(default)/documents/cvAccess/$(request.auth.uid + "_" + userId)
+        );
+        let application = firestore.get(
+          /databases/(default)/documents/applications/$(access.data.applicationId)
+        );
+        return access.data.employerId == request.auth.uid
+          && access.data.applicantId == userId
+          && application.data.employerId == request.auth.uid
+          && application.data.applicantId == userId
+          && application.data.jobId == access.data.jobId;
+      }
+
+      allow read: if isOwnerJobSeeker()
+        || (request.auth != null && hasEmployerCvAccess());
       allow write: if isOwnerJobSeeker()
         && request.resource != null
         && request.resource.contentType == 'application/pdf';
