@@ -37,6 +37,9 @@ data class PostJobUiState(
     val benefits: String = "",
     val applicationDeadline: String = "",
     val validationErrors: Set<PostJobValidationError> = emptySet(),
+    val isLoading: Boolean = false,
+    val isEditMode: Boolean = false,
+    val hasLoadedJob: Boolean = false,
     val isPosting: Boolean = false,
     val postedJob: Job? = null,
     val error: JobError? = null,
@@ -61,10 +64,15 @@ enum class PostJobValidationError {
 
 class PostJobViewModel(
     private val jobRepository: JobRepository,
+    private val jobId: String? = null,
     private val currentDateProvider: () -> Date = { Date() },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PostJobUiState())
     val uiState: StateFlow<PostJobUiState> = _uiState.asStateFlow()
+
+    init {
+        if (jobId != null) loadJobForEditing()
+    }
 
     fun onTitleChanged(value: String) = updateField(PostJobValidationError.TITLE_REQUIRED) {
         copy(title = value)
@@ -193,7 +201,12 @@ class PostJobViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isPosting = true, error = null) }
-            when (val result = jobRepository.postJob(job)) {
+            val result = if (jobId == null) {
+                jobRepository.postJob(job)
+            } else {
+                jobRepository.updateEmployerJob(jobId, job)
+            }
+            when (result) {
                 is JobResult.Success -> {
                     _uiState.update {
                         it.copy(isPosting = false, postedJob = result.value, error = null)
@@ -210,6 +223,49 @@ class PostJobViewModel(
     fun startAnotherJob() {
         _uiState.value = PostJobUiState()
     }
+
+    fun retryLoading() {
+        if (jobId != null) loadJobForEditing()
+    }
+
+    private fun loadJobForEditing() {
+        val currentJobId = jobId ?: return
+        viewModelScope.launch {
+            _uiState.value = PostJobUiState(
+                isLoading = true,
+                isEditMode = true,
+            )
+            _uiState.value = when (val result = jobRepository.getEmployerJob(currentJobId)) {
+                is JobResult.Success -> result.value.toEditUiState()
+                is JobResult.Failure -> PostJobUiState(
+                    isLoading = false,
+                    isEditMode = true,
+                    error = result.error,
+                )
+            }
+        }
+    }
+
+    private fun Job.toEditUiState() = PostJobUiState(
+        title = title,
+        description = description,
+        category = category,
+        location = location,
+        workMode = workMode,
+        jobType = jobType,
+        salaryMin = salaryMin?.toString().orEmpty(),
+        salaryMax = salaryMax?.toString().orEmpty(),
+        currency = currency,
+        experienceLevel = experienceLevel,
+        requiredSkills = requiredSkills.joinToString(", "),
+        requirements = requirements.joinToString(", "),
+        benefits = benefits.joinToString(", "),
+        applicationDeadline = applicationDeadline?.toDate()?.let {
+            deadlineDateFormat().format(it)
+        }.orEmpty(),
+        isEditMode = true,
+        hasLoadedJob = true,
+    )
 
     private fun updateField(
         vararg validationErrors: PostJobValidationError,
@@ -263,13 +319,14 @@ class PostJobViewModel(
 
     class Factory(
         private val jobRepository: JobRepository,
+        private val jobId: String? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(PostJobViewModel::class.java)) {
                 "Unknown ViewModel class: ${modelClass.name}"
             }
-            return PostJobViewModel(jobRepository) as T
+            return PostJobViewModel(jobRepository, jobId) as T
         }
     }
 

@@ -90,6 +90,19 @@ class JobDetailsViewModelTest {
         var savedJobId: String? = null
         var unsavedJobId: String? = null
 
+        override suspend fun getEmployerJobs(): JobResult<List<Job>> =
+            JobResult.Success(emptyList())
+
+        override suspend fun getEmployerJob(jobId: String): JobResult<Job> = jobResult
+
+        override suspend fun updateEmployerJob(jobId: String, job: Job): JobResult<Job> =
+            JobResult.Success(job)
+
+        override suspend fun setEmployerJobActive(
+            jobId: String,
+            active: Boolean,
+        ): JobResult<Job> = JobResult.Failure(JobError.JOB_NOT_FOUND)
+
         override suspend fun getJob(jobId: String): JobResult<Job> {
             requestedJobId = jobId
             return jobResult

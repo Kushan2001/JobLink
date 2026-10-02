@@ -57,16 +57,28 @@ fun PostJobScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val postedJob = uiState.postedJob
+    val loadError = uiState.error
 
-    if (postedJob != null) {
-        JobPostedConfirmation(
+    when {
+        uiState.isLoading -> JobFormLoading(modifier)
+        uiState.isEditMode && !uiState.hasLoadedJob && loadError != null -> {
+            JobFormLoadError(
+                error = loadError,
+                onRetry = viewModel::retryLoading,
+                onBack = onBack,
+                modifier = modifier,
+            )
+        }
+
+        postedJob != null -> JobPostedConfirmation(
             job = postedJob,
+            isEditMode = uiState.isEditMode,
             onPostAnother = viewModel::startAnotherJob,
             onBack = onBack,
             modifier = modifier,
         )
-    } else {
-        PostJobForm(
+
+        else -> PostJobForm(
             uiState = uiState,
             onTitleChanged = viewModel::onTitleChanged,
             onDescriptionChanged = viewModel::onDescriptionChanged,
@@ -115,13 +127,17 @@ private fun PostJobForm(
             Text(text = stringResource(R.string.back))
         }
         Text(
-            text = stringResource(R.string.post_job_title),
+            text = stringResource(
+                if (uiState.isEditMode) R.string.edit_job else R.string.post_job_title,
+            ),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(modifier = Modifier.height(JobLinkSpacing.small))
         Text(
-            text = stringResource(R.string.post_job_subtitle),
+            text = stringResource(
+                if (uiState.isEditMode) R.string.edit_job_subtitle else R.string.post_job_subtitle,
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyLarge,
         )
@@ -330,7 +346,11 @@ private fun PostJobForm(
                     strokeWidth = 2.dp,
                 )
             } else {
-                Text(text = stringResource(R.string.publish_job))
+                Text(
+                    text = stringResource(
+                        if (uiState.isEditMode) R.string.save_job_changes else R.string.publish_job,
+                    ),
+                )
             }
         }
     }
@@ -339,6 +359,7 @@ private fun PostJobForm(
 @Composable
 private fun JobPostedConfirmation(
     job: Job,
+    isEditMode: Boolean,
     onPostAnother: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -364,28 +385,92 @@ private fun JobPostedConfirmation(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(R.string.job_posted_title),
+                    text = stringResource(
+                        if (isEditMode) R.string.job_updated_title else R.string.job_posted_title,
+                    ),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(JobLinkSpacing.medium))
                 Text(
-                    text = stringResource(R.string.job_posted_message, job.title),
+                    text = stringResource(
+                        if (isEditMode) {
+                            R.string.job_updated_message
+                        } else {
+                            R.string.job_posted_message
+                        },
+                        job.title,
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(modifier = Modifier.height(JobLinkSpacing.extraLarge))
-                Button(
-                    onClick = onPostAnother,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(text = stringResource(R.string.post_another_job))
+                if (!isEditMode) {
+                    Button(
+                        onClick = onPostAnother,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = stringResource(R.string.post_another_job))
+                    }
                 }
                 OutlinedButton(
                     onClick = onBack,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(text = stringResource(R.string.return_to_company_profile))
+                    Text(
+                        text = stringResource(
+                            if (isEditMode) {
+                                R.string.return_to_my_jobs
+                            } else {
+                                R.string.return_to_company_profile
+                            },
+                        ),
+                    )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun JobFormLoading(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
+        ) {
+            CircularProgressIndicator()
+            Text(text = stringResource(R.string.loading_job_for_editing))
+        }
+    }
+}
+
+@Composable
+private fun JobFormLoadError(
+    error: JobError,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(JobLinkSpacing.large),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.widthIn(max = 560.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
+        ) {
+            JobPostingErrorMessage(error)
+            if (error != JobError.JOB_NOT_FOUND) {
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(R.string.retry))
+                }
+            }
+            TextButton(onClick = onBack) {
+                Text(text = stringResource(R.string.back))
             }
         }
     }

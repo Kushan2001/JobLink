@@ -50,6 +50,7 @@ import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 fun EmployerProfileScreen(
     viewModel: EmployerProfileViewModel,
     onPostJob: () -> Unit,
+    onMyJobs: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -84,6 +85,7 @@ fun EmployerProfileScreen(
             saveSucceeded = uiState.saveSucceeded,
             onEdit = viewModel::startEditing,
             onPostJob = onPostJob,
+            onMyJobs = onMyJobs,
             onLogout = onLogout,
             modifier = modifier,
         )
@@ -96,6 +98,7 @@ private fun CompanyProfileViewContent(
     saveSucceeded: Boolean,
     onEdit: () -> Unit,
     onPostJob: () -> Unit,
+    onMyJobs: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,6 +152,13 @@ private fun CompanyProfileViewContent(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(text = stringResource(R.string.post_job))
+        }
+        Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+        OutlinedButton(
+            onClick = onMyJobs,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = stringResource(R.string.my_jobs))
         }
         Spacer(modifier = Modifier.height(JobLinkSpacing.small))
         OutlinedButton(

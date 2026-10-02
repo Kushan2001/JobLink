@@ -28,4 +28,5 @@ data class Job(
     @get:ServerTimestamp
     var updatedAt: Timestamp? = null,
     val active: Boolean = true,
+    val applicantCount: Long = 0,
 )

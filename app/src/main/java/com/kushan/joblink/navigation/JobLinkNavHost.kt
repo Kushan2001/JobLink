@@ -18,6 +18,8 @@ import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.ApplicationDetailsScreen
 import com.kushan.joblink.ui.screens.ApplicationScreen
+import com.kushan.joblink.ui.screens.EmployerJobDetailsScreen
+import com.kushan.joblink.ui.screens.EmployerJobsScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
 import com.kushan.joblink.ui.screens.HomeScreen
 import com.kushan.joblink.ui.screens.JobDetailsScreen
@@ -32,6 +34,8 @@ import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.ApplicationDetailsViewModel
 import com.kushan.joblink.viewmodel.ApplicationViewModel
+import com.kushan.joblink.viewmodel.EmployerJobDetailsViewModel
+import com.kushan.joblink.viewmodel.EmployerJobsViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
 import com.kushan.joblink.viewmodel.HomeViewModel
 import com.kushan.joblink.viewmodel.JobDetailsViewModel
@@ -280,6 +284,7 @@ fun JobLinkNavHost(
                 EmployerProfileScreen(
                     viewModel = profileViewModel,
                     onPostJob = { navController.navigate(PostJobDestination) },
+                    onMyJobs = { navController.navigate(EmployerJobsDestination) },
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(WelcomeDestination) {
@@ -288,6 +293,69 @@ fun JobLinkNavHost(
                         }
                     },
                 )
+            }
+        }
+
+        composable<EmployerJobsDestination> {
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val employerJobsViewModel: EmployerJobsViewModel = viewModel(
+                    factory = EmployerJobsViewModel.Factory(jobRepository),
+                )
+                EmployerJobsScreen(
+                    viewModel = employerJobsViewModel,
+                    onViewJob = { jobId ->
+                        navController.navigate(EmployerJobDetailsDestination(jobId))
+                    },
+                    onEditJob = { jobId ->
+                        navController.navigate(EditJobDestination(jobId))
+                    },
+                    onPostJob = { navController.navigate(PostJobDestination) },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<EmployerJobDetailsDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val destination = backStackEntry.toRoute<EmployerJobDetailsDestination>()
+                val detailsViewModel: EmployerJobDetailsViewModel = viewModel(
+                    factory = EmployerJobDetailsViewModel.Factory(
+                        jobId = destination.jobId,
+                        jobRepository = jobRepository,
+                    ),
+                )
+                EmployerJobDetailsScreen(
+                    viewModel = detailsViewModel,
+                    onEdit = { jobId -> navController.navigate(EditJobDestination(jobId)) },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<EditJobDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val destination = backStackEntry.toRoute<EditJobDestination>()
+                val editJobViewModel: PostJobViewModel = viewModel(
+                    factory = PostJobViewModel.Factory(
+                        jobRepository = jobRepository,
+                        jobId = destination.jobId,
+                    ),
+                )
+                PostJobScreen(
+                    viewModel = editJobViewModel,
+                    onBack = {
+                        navController.navigate(EmployerJobsDestination) {
+                            popUpTo<EmployerJobsDestination> { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            } else {
+                AuthenticationLoadingScreen()
             }
         }
 
