@@ -2,6 +2,8 @@ package com.kushan.joblink.viewmodel
 
 import com.kushan.joblink.MainDispatcherRule
 import com.kushan.joblink.data.model.ApplicationDraft
+import com.kushan.joblink.data.model.ApplicationStatus
+import com.kushan.joblink.data.model.EmployerApplicationsData
 import com.kushan.joblink.data.model.JobApplication
 import com.kushan.joblink.data.repository.ApplicationError
 import com.kushan.joblink.data.repository.ApplicationRepository
@@ -14,6 +16,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApplicationDetailsViewModelTest {
@@ -56,6 +59,22 @@ class ApplicationDetailsViewModelTest {
         private val detailResult: ApplicationResult<JobApplication>,
     ) : ApplicationRepository {
         var requestedApplicationId: String? = null
+
+        override suspend fun getEmployerApplications(jobId: String) =
+            ApplicationResult.Success(EmployerApplicationsData(jobId, "", emptyList()))
+
+        override suspend fun getEmployerApplication(applicationId: String) =
+            ApplicationResult.Failure(ApplicationError.APPLICATION_NOT_FOUND)
+
+        override suspend fun updateEmployerApplicationStatus(
+            applicationId: String,
+            status: ApplicationStatus,
+        ) = ApplicationResult.Failure(ApplicationError.APPLICATION_NOT_FOUND)
+
+        override suspend fun downloadApplicantCv(
+            applicationId: String,
+            onProgress: (Float) -> Unit,
+        ): ApplicationResult<File> = ApplicationResult.Failure(ApplicationError.CV_NOT_AVAILABLE)
 
         override suspend fun getMyApplications(): ApplicationResult<List<JobApplication>> =
             ApplicationResult.Success(emptyList())

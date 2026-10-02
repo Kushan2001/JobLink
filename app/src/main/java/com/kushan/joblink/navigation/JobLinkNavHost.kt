@@ -18,6 +18,8 @@ import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.ApplicationDetailsScreen
 import com.kushan.joblink.ui.screens.ApplicationScreen
+import com.kushan.joblink.ui.screens.ApplicantDetailsScreen
+import com.kushan.joblink.ui.screens.EmployerApplicationsScreen
 import com.kushan.joblink.ui.screens.EmployerJobDetailsScreen
 import com.kushan.joblink.ui.screens.EmployerJobsScreen
 import com.kushan.joblink.ui.screens.EmployerProfileScreen
@@ -34,6 +36,8 @@ import com.kushan.joblink.ui.screens.WelcomeScreen
 import com.kushan.joblink.viewmodel.AuthViewModel
 import com.kushan.joblink.viewmodel.ApplicationDetailsViewModel
 import com.kushan.joblink.viewmodel.ApplicationViewModel
+import com.kushan.joblink.viewmodel.ApplicantDetailsViewModel
+import com.kushan.joblink.viewmodel.EmployerApplicationsViewModel
 import com.kushan.joblink.viewmodel.EmployerJobDetailsViewModel
 import com.kushan.joblink.viewmodel.EmployerJobsViewModel
 import com.kushan.joblink.viewmodel.EmployerProfileViewModel
@@ -329,6 +333,48 @@ fun JobLinkNavHost(
                 EmployerJobDetailsScreen(
                     viewModel = detailsViewModel,
                     onEdit = { jobId -> navController.navigate(EditJobDestination(jobId)) },
+                    onViewApplicants = { jobId ->
+                        navController.navigate(EmployerApplicationsDestination(jobId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<EmployerApplicationsDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val destination = backStackEntry.toRoute<EmployerApplicationsDestination>()
+                val applicationsViewModel: EmployerApplicationsViewModel = viewModel(
+                    factory = EmployerApplicationsViewModel.Factory(
+                        jobId = destination.jobId,
+                        applicationRepository = applicationRepository,
+                    ),
+                )
+                EmployerApplicationsScreen(
+                    viewModel = applicationsViewModel,
+                    onApplicantClick = { applicationId ->
+                        navController.navigate(ApplicantDetailsDestination(applicationId))
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                AuthenticationLoadingScreen()
+            }
+        }
+
+        composable<ApplicantDetailsDestination> { backStackEntry ->
+            if (authUiState.currentUser?.role == UserRole.EMPLOYER) {
+                val destination = backStackEntry.toRoute<ApplicantDetailsDestination>()
+                val applicantDetailsViewModel: ApplicantDetailsViewModel = viewModel(
+                    factory = ApplicantDetailsViewModel.Factory(
+                        applicationId = destination.applicationId,
+                        applicationRepository = applicationRepository,
+                    ),
+                )
+                ApplicantDetailsScreen(
+                    viewModel = applicantDetailsViewModel,
                     onBack = { navController.popBackStack() },
                 )
             } else {

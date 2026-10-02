@@ -14,7 +14,9 @@ import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 
 class JobLinkApplication : Application() {
     val authRepository: AuthRepository by lazy { FirebaseAuthRepository() }
-    val applicationRepository: ApplicationRepository by lazy { FirebaseApplicationRepository() }
+    val applicationRepository: ApplicationRepository by lazy {
+        FirebaseApplicationRepository(cacheDirectory = cacheDir)
+    }
     val employerProfileRepository: EmployerProfileRepository by lazy {
         FirebaseEmployerProfileRepository()
     }

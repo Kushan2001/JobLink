@@ -46,6 +46,7 @@ import java.text.NumberFormat
 fun EmployerJobDetailsScreen(
     viewModel: EmployerJobDetailsViewModel,
     onEdit: (String) -> Unit,
+    onViewApplicants: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -60,6 +61,7 @@ fun EmployerJobDetailsScreen(
             isUpdating = uiState.isUpdating,
             actionError = uiState.actionError,
             onEdit = { onEdit(job.id) },
+            onViewApplicants = { onViewApplicants(job.id) },
             onSetActive = { viewModel.setActive(!job.active) },
             onBack = onBack,
             modifier = modifier,
@@ -80,6 +82,7 @@ private fun EmployerJobDetailsContent(
     isUpdating: Boolean,
     actionError: JobError?,
     onEdit: () -> Unit,
+    onViewApplicants: () -> Unit,
     onSetActive: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -152,6 +155,9 @@ private fun EmployerJobDetailsContent(
                 horizontalArrangement = Arrangement.spacedBy(JobLinkSpacing.small),
                 verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.small),
             ) {
+                OutlinedButton(onClick = onViewApplicants, enabled = !isUpdating) {
+                    Text(text = stringResource(R.string.view_applicants))
+                }
                 OutlinedButton(onClick = onEdit, enabled = !isUpdating) {
                     Text(text = stringResource(R.string.edit_job))
                 }
