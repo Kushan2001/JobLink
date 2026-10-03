@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.kushan.joblink.R
 import com.kushan.joblink.data.model.Job
@@ -31,6 +32,8 @@ fun JobCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isSaved: Boolean = false,
+    recommendationScore: Int? = null,
+    matchedSkillCount: Int = 0,
 ) {
     Card(
         onClick = onClick,
@@ -73,6 +76,34 @@ fun JobCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+            recommendationScore?.let { score ->
+                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        text = stringResource(R.string.profile_match_score, score),
+                        modifier = Modifier.padding(
+                            horizontal = JobLinkSpacing.small,
+                            vertical = JobLinkSpacing.extraSmall,
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                if (matchedSkillCount > 0) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.matched_skills_reason,
+                            matchedSkillCount,
+                            matchedSkillCount,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.small))
             Text(
                 text = job.location,

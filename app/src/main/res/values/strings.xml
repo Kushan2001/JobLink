@@ -228,7 +228,14 @@
     <string name="saved_jobs_shortcut">Review roles you saved.</string>
     <string name="applications_shortcut">Track your application progress.</string>
     <string name="job_categories">Job categories</string>
-    <string name="recommended_recent_jobs">Recommended and recent jobs</string>
+    <string name="recommended_for_you">Recommended for you</string>
+    <string name="recent_jobs">Recent jobs</string>
+    <string name="profile_match_score">%1$d%% profile match</string>
+    <plurals name="matched_skills_reason">
+        <item quantity="one">Matches %1$d of your skills</item>
+        <item quantity="other">Matches %1$d of your skills</item>
+    </plurals>
+    <string name="recommendation_disclaimer">Based on your JobLink profile. This score does not predict hiring success.</string>
     <string name="employer_home_greeting">Welcome, %1$s</string>
     <string name="your_company">your company</string>
     <string name="employer_home_subtitle">Manage opportunities and keep hiring activity moving.</string>
