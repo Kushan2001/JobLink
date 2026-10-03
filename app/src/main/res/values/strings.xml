@@ -228,7 +228,16 @@
     <string name="saved_jobs_shortcut">Review roles you saved.</string>
     <string name="applications_shortcut">Track your application progress.</string>
     <string name="job_categories">Job categories</string>
-    <string name="recommended_recent_jobs">Recommended and recent jobs</string>
+    <string name="recommended_for_you">Recommended for you</string>
+    <string name="recommendation_explanation">Based on your profile preferences, not a prediction of hiring success.</string>
+    <string name="recommendation_score">%1$d%% profile match</string>
+    <plurals name="recommendation_skill_matches">
+        <item quantity="one">Matches %1$d of your skills</item>
+        <item quantity="other">Matches %1$d of your skills</item>
+    </plurals>
+    <string name="recommendation_job_type_match">Matches your preferred job type</string>
+    <string name="recommendation_location_match">Matches your location</string>
+    <string name="recommendation_experience_match">Matches your experience level</string>
     <string name="employer_home_greeting">Welcome, %1$s</string>
     <string name="your_company">your company</string>
     <string name="employer_home_subtitle">Manage opportunities and keep hiring activity moving.</string>

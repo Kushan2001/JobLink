@@ -456,17 +456,25 @@ private fun JobFeed(
             }
         } else {
             item {
-                Text(
-                    text = stringResource(R.string.recommended_recent_jobs),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.extraSmall)) {
+                    Text(
+                        text = stringResource(R.string.recommended_for_you),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.recommendation_explanation),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             items(uiState.jobs, key = { it.id }) { job ->
                 JobCard(
                     job = job,
                     onClick = { onJobClick(job.id) },
                     isSaved = job.id in uiState.savedJobIds,
+                    recommendation = uiState.recommendations[job.id],
                 )
             }
         }

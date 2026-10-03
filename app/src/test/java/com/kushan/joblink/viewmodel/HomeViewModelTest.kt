@@ -1,12 +1,17 @@
 package com.kushan.joblink.viewmodel
 
 import com.kushan.joblink.MainDispatcherRule
+import com.kushan.joblink.data.model.CvMetadata
+import com.kushan.joblink.data.model.CvUploadFile
 import com.kushan.joblink.data.model.Job
+import com.kushan.joblink.data.model.JobSeekerProfile
 import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
+import com.kushan.joblink.data.repository.JobSeekerProfileRepository
+import com.kushan.joblink.data.repository.ProfileResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -26,7 +31,7 @@ class HomeViewModelTest {
         val jobs = listOf(Job(id = "job-1", title = "Android Developer"))
         val repository = FakeJobRepository(mutableListOf(JobResult.Success(jobs)))
 
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         assertEquals(jobs, viewModel.uiState.value.jobs)
@@ -40,7 +45,7 @@ class HomeViewModelTest {
             mutableListOf(JobResult.Success(emptyList())),
         )
 
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.jobs.isEmpty())
@@ -54,7 +59,7 @@ class HomeViewModelTest {
             mutableListOf(JobResult.Failure(JobError.NETWORK)),
         )
 
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         assertEquals(JobError.NETWORK, viewModel.uiState.value.error)
@@ -70,7 +75,7 @@ class HomeViewModelTest {
                 JobResult.Failure(JobError.NETWORK),
             ),
         )
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         viewModel.refresh()
@@ -86,7 +91,7 @@ class HomeViewModelTest {
         val repository = FakeJobRepository(
             mutableListOf(JobResult.Success(filterableJobs())),
         )
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         viewModel.onSearchQueryChanged("android acme")
@@ -108,7 +113,7 @@ class HomeViewModelTest {
             savedJobsResult = JobResult.Success(listOf(jobs.first())),
         )
 
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         assertEquals(setOf("android"), viewModel.uiState.value.savedJobIds)
@@ -116,11 +121,51 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun jobsAreOrderedByProfileMatchScore() = runTest {
+        val jobs = listOf(
+            Job(
+                id = "designer",
+                title = "Product Designer",
+                location = "Galle",
+                requiredSkills = listOf("Figma"),
+                jobType = JobType.CONTRACT,
+                experienceLevel = "Senior",
+            ),
+            Job(
+                id = "android",
+                title = "Android Developer",
+                location = "Colombo",
+                requiredSkills = listOf("Kotlin", "Compose"),
+                jobType = JobType.FULL_TIME,
+                experienceLevel = "Mid level",
+            ),
+        )
+        val repository = FakeJobRepository(mutableListOf(JobResult.Success(jobs)))
+        val profileRepository = FakeJobSeekerProfileRepository(
+            ProfileResult.Success(
+                emptyProfile().copy(
+                    professionalHeadline = "Mid-level Android developer",
+                    location = "Colombo",
+                    skills = listOf("Kotlin", "Jetpack Compose"),
+                    preferredJobTypes = listOf("Full time"),
+                ),
+            ),
+        )
+
+        val viewModel = HomeViewModel(repository, profileRepository)
+        advanceUntilIdle()
+
+        assertEquals(listOf("android", "designer"), viewModel.uiState.value.jobs.map(Job::id))
+        assertEquals(100, viewModel.uiState.value.recommendations["android"]?.score)
+        assertEquals(0, viewModel.uiState.value.recommendations["designer"]?.score)
+    }
+
+    @Test
     fun categoriesComeFromLoadedJobsAndCanToggleTheExistingFilter() = runTest {
         val repository = FakeJobRepository(
             mutableListOf(JobResult.Success(filterableJobs())),
         )
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         assertEquals(listOf("Engineering", "Design"), viewModel.uiState.value.categories)
@@ -140,7 +185,7 @@ class HomeViewModelTest {
         val repository = FakeJobRepository(
             mutableListOf(JobResult.Success(jobs)),
         )
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
 
         viewModel.onCategoryFilterChanged("engineering")
@@ -180,7 +225,7 @@ class HomeViewModelTest {
                 JobResult.Success(refreshedJobs),
             ),
         )
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeJobSeekerProfileRepository())
         advanceUntilIdle()
         viewModel.onCategoryFilterChanged("engineering")
         viewModel.onWorkModeFilterChanged(WorkMode.REMOTE)
@@ -217,6 +262,23 @@ class HomeViewModelTest {
             workMode = WorkMode.REMOTE,
         ),
     )
+
+    private class FakeJobSeekerProfileRepository(
+        private val profileResult: ProfileResult<JobSeekerProfile> = ProfileResult.Success(
+            emptyProfile(),
+        ),
+    ) : JobSeekerProfileRepository {
+        override suspend fun getProfile(): ProfileResult<JobSeekerProfile> = profileResult
+
+        override suspend fun saveProfile(
+            profile: JobSeekerProfile,
+        ): ProfileResult<JobSeekerProfile> = ProfileResult.Success(profile)
+
+        override suspend fun uploadCv(
+            file: CvUploadFile,
+            onProgress: (Float) -> Unit,
+        ): ProfileResult<CvMetadata> = ProfileResult.Success(CvMetadata())
+    }
 
     private class FakeJobRepository(
         private val activeJobResults: MutableList<JobResult<List<Job>>>,
@@ -262,5 +324,20 @@ class HomeViewModelTest {
 
         override suspend fun unsaveJob(jobId: String): JobResult<Unit> =
             JobResult.Success(Unit)
+    }
+
+    private companion object {
+        fun emptyProfile() = JobSeekerProfile(
+            uid = "user-1",
+            fullName = "Alex Silva",
+            professionalHeadline = "",
+            location = "",
+            phone = "",
+            bio = "",
+            education = "",
+            experienceSummary = "",
+            skills = emptyList(),
+            preferredJobTypes = emptyList(),
+        )
     }
 }

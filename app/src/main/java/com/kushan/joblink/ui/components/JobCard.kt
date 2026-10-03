@@ -15,12 +15,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.kushan.joblink.R
 import com.kushan.joblink.data.model.Job
 import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.WorkMode
+import com.kushan.joblink.recommendation.JobRecommendation
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -31,6 +33,7 @@ fun JobCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isSaved: Boolean = false,
+    recommendation: JobRecommendation? = null,
 ) {
     Card(
         onClick = onClick,
@@ -73,6 +76,10 @@ fun JobCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+            if (recommendation != null && recommendation.score > 0) {
+                Spacer(modifier = Modifier.height(JobLinkSpacing.small))
+                RecommendationSummary(recommendation = recommendation)
+            }
             Spacer(modifier = Modifier.height(JobLinkSpacing.small))
             Text(
                 text = job.location,
@@ -103,6 +110,53 @@ fun JobCard(
                     ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationSummary(recommendation: JobRecommendation) {
+    val explanation = when {
+        recommendation.matchedSkills.isNotEmpty() -> pluralStringResource(
+            R.plurals.recommendation_skill_matches,
+            recommendation.matchedSkills.size,
+            recommendation.matchedSkills.size,
+        )
+
+        recommendation.preferredJobTypeMatched -> stringResource(
+            R.string.recommendation_job_type_match,
+        )
+
+        recommendation.locationMatched -> stringResource(R.string.recommendation_location_match)
+        recommendation.experienceLevelMatched -> stringResource(
+            R.string.recommendation_experience_match,
+        )
+
+        else -> null
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = JobLinkSpacing.small,
+                vertical = JobLinkSpacing.extraSmall,
+            ),
+        ) {
+            Text(
+                text = stringResource(R.string.recommendation_score, recommendation.score),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            explanation?.let { reason ->
+                Text(
+                    text = reason,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

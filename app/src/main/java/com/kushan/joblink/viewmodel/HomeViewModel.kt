@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kushan.joblink.data.model.Job
+import com.kushan.joblink.data.model.JobSeekerProfile
 import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
+import com.kushan.joblink.data.repository.JobSeekerProfileRepository
+import com.kushan.joblink.data.repository.ProfileResult
+import com.kushan.joblink.recommendation.JobRecommendation
+import com.kushan.joblink.recommendation.JobRecommendationScorer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +24,8 @@ data class HomeUiState(
     val allJobs: List<Job> = emptyList(),
     val jobs: List<Job> = emptyList(),
     val savedJobIds: Set<String> = emptySet(),
+    val profile: JobSeekerProfile? = null,
+    val recommendations: Map<String, JobRecommendation> = emptyMap(),
     val searchQuery: String = "",
     val categoryFilter: String = "",
     val locationFilter: String = "",
@@ -57,6 +64,7 @@ data class HomeUiState(
 
 class HomeViewModel(
     private val jobRepository: JobRepository,
+    private val jobSeekerProfileRepository: JobSeekerProfileRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -140,15 +148,17 @@ class HomeViewModel(
             }
             val jobsResult = jobRepository.getActiveJobs()
             val savedJobsResult = jobRepository.getSavedJobs()
+            val profileResult = jobSeekerProfileRepository.getProfile()
             when {
                 jobsResult is JobResult.Success && savedJobsResult is JobResult.Success -> {
                     _uiState.update {
                         it.copy(
                             allJobs = jobsResult.value,
                             savedJobIds = savedJobsResult.value.mapTo(mutableSetOf(), Job::id),
+                            profile = (profileResult as? ProfileResult.Success)?.value,
                             isLoading = false,
                             isRefreshing = false,
-                        ).withFilteredJobs()
+                        ).withRecommendations().withFilteredJobs()
                     }
                 }
 
@@ -175,13 +185,14 @@ class HomeViewModel(
 
     class Factory(
         private val jobRepository: JobRepository,
+        private val jobSeekerProfileRepository: JobSeekerProfileRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(HomeViewModel::class.java)) {
                 "Unknown ViewModel class: ${modelClass.name}"
             }
-            return HomeViewModel(jobRepository) as T
+            return HomeViewModel(jobRepository, jobSeekerProfileRepository) as T
         }
     }
 }
@@ -201,7 +212,20 @@ private fun HomeUiState.withFilteredJobs(): HomeUiState {
             (jobTypeFilter == null || job.jobType == jobTypeFilter) &&
             (workModeFilter == null || job.workMode == workModeFilter)
     }
-    return copy(jobs = filteredJobs)
+    return copy(
+        jobs = filteredJobs.sortedByDescending { job ->
+            recommendations[job.id]?.score ?: 0
+        },
+    )
+}
+
+private fun HomeUiState.withRecommendations(): HomeUiState {
+    val currentProfile = profile ?: return copy(recommendations = emptyMap())
+    return copy(
+        recommendations = allJobs.associate { job ->
+            job.id to JobRecommendationScorer.score(currentProfile, job)
+        },
+    )
 }
 
 private fun String.normalizedTerms(): List<String> =

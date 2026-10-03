@@ -137,7 +137,10 @@ fun JobLinkNavHost(
             when (profile?.role) {
                 UserRole.JOB_SEEKER -> {
                     val homeViewModel: HomeViewModel = viewModel(
-                        factory = HomeViewModel.Factory(jobRepository),
+                        factory = HomeViewModel.Factory(
+                            jobRepository = jobRepository,
+                            jobSeekerProfileRepository = jobSeekerProfileRepository,
+                        ),
                     )
                     HomeScreen(
                         viewModel = homeViewModel,
