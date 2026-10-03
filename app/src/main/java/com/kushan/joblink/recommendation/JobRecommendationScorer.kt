@@ -9,6 +9,7 @@ data class JobRecommendation(
     val matchedSkillCount: Int,
     val requiredSkillCount: Int,
     val jobTypeMatched: Boolean,
+    val workModeMatched: Boolean,
     val locationMatched: Boolean,
     val experienceLevelMatched: Boolean,
 )
@@ -30,21 +31,29 @@ object JobRecommendationScorer {
             matchedSkillCount.toDouble() / requiredSkills.size * SKILL_WEIGHT
         }
 
-        val preferredTypes = profile.preferredJobTypes.mapTo(mutableSetOf()) { it.normalized() }
-        val jobTypeMatched = job.jobType.name.normalized() in preferredTypes
+        val preferredTypes = profile.preferredJobTypes
+            .mapTo(mutableSetOf()) { it.normalizedEnumValue() }
+        val jobTypeMatched = job.jobType.name.normalizedEnumValue() in preferredTypes
         val jobTypePoints = if (jobTypeMatched) JOB_TYPE_WEIGHT else 0
 
-        val normalizedProfileLocation = profile.location.normalized()
+        val preferredWorkModes = profile.preferredWorkModes
+            .mapTo(mutableSetOf()) { it.normalizedEnumValue() }
+        val workModeMatched = job.workMode.name.normalizedEnumValue() in preferredWorkModes
+        val workModePoints = if (workModeMatched) WORK_MODE_WEIGHT else 0
+
+        val normalizedProfileLocations = (profile.preferredLocations + profile.location)
+            .map { location -> location.normalized() }
+            .filter(String::isNotBlank)
         val normalizedJobLocation = job.location.normalized()
-        val locationMatched = normalizedProfileLocation.isNotBlank() &&
-            normalizedJobLocation.isNotBlank() &&
-            (
-                normalizedProfileLocation.contains(normalizedJobLocation) ||
-                    normalizedJobLocation.contains(normalizedProfileLocation)
-                )
+        val locationMatched = normalizedJobLocation.isNotBlank() &&
+            normalizedProfileLocations.any { profileLocation ->
+                profileLocation.contains(normalizedJobLocation) ||
+                    normalizedJobLocation.contains(profileLocation)
+            }
         val locationPoints = if (locationMatched) LOCATION_WEIGHT else 0
 
         val experienceText = listOf(
+            profile.experienceLevel,
             profile.professionalHeadline,
             profile.experienceSummary,
         ).joinToString(" ").normalized()
@@ -54,7 +63,9 @@ object JobRecommendationScorer {
             experienceKeywords(jobExperienceLevel).any(profileExperienceTokens::contains)
         val experiencePoints = if (experienceLevelMatched) EXPERIENCE_WEIGHT else 0
 
-        val total = (skillPoints + jobTypePoints + locationPoints + experiencePoints)
+        val total = (
+            skillPoints + jobTypePoints + workModePoints + locationPoints + experiencePoints
+            )
             .roundToInt()
             .coerceIn(0, 100)
         return JobRecommendation(
@@ -62,6 +73,7 @@ object JobRecommendationScorer {
             matchedSkillCount = matchedSkillCount,
             requiredSkillCount = requiredSkills.size,
             jobTypeMatched = jobTypeMatched,
+            workModeMatched = workModeMatched,
             locationMatched = locationMatched,
             experienceLevelMatched = experienceLevelMatched,
         )
@@ -79,8 +91,11 @@ object JobRecommendationScorer {
         .trim()
         .replace(Regex("\\s+"), " ")
 
-    private const val SKILL_WEIGHT = 55
-    private const val JOB_TYPE_WEIGHT = 20
+    private fun String.normalizedEnumValue(): String = normalized().replace(" ", "")
+
+    private const val SKILL_WEIGHT = 50
+    private const val JOB_TYPE_WEIGHT = 15
+    private const val WORK_MODE_WEIGHT = 10
     private const val LOCATION_WEIGHT = 15
     private const val EXPERIENCE_WEIGHT = 10
     private val EXPERIENCE_KEYWORDS = setOf(

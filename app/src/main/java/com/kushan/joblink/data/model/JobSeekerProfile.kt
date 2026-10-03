@@ -12,4 +12,7 @@ data class JobSeekerProfile(
     val skills: List<String>,
     val preferredJobTypes: List<String>,
     val cv: CvMetadata? = null,
+    val preferredWorkModes: List<String> = emptyList(),
+    val preferredLocations: List<String> = emptyList(),
+    val experienceLevel: String = "",
 )
