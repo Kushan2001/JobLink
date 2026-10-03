@@ -1,6 +1,7 @@
 package com.kushan.joblink.data.repository
 
 import android.net.Uri
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.DocumentSnapshot
@@ -30,8 +31,10 @@ class FirebaseJobSeekerProfileRepository(
 
         return try {
             val document = userDocument(uid).get().await()
+            Log.d(TAG, "Profile document fields: ${document.data?.keys?.sorted().orEmpty()}")
             document.toJobSeekerProfile(uid)
         } catch (exception: Exception) {
+            Log.e(TAG, "Failed to load job-seeker profile", exception)
             ProfileResult.Failure(exception.toProfileError())
         }
     }
@@ -146,7 +149,14 @@ class FirebaseJobSeekerProfileRepository(
                 experienceSummary = getString(FIELD_EXPERIENCE_SUMMARY).orEmpty(),
                 skills = getStringList(FIELD_SKILLS),
                 preferredJobTypes = getStringList(FIELD_PREFERRED_JOB_TYPES),
-                cv = get(FIELD_CV, CvMetadata::class.java),
+                cv = runCatching { get(FIELD_CV, CvMetadata::class.java) }
+                    .onFailure { exception ->
+                        Log.w(TAG, "Ignoring malformed legacy CV metadata", exception)
+                    }
+                    .getOrNull(),
+                preferredWorkModes = getStringList(FIELD_PREFERRED_WORK_MODES),
+                preferredLocations = getStringList(FIELD_PREFERRED_LOCATIONS),
+                experienceLevel = getString(FIELD_EXPERIENCE_LEVEL).orEmpty(),
             ),
         )
     }
@@ -198,6 +208,7 @@ class FirebaseJobSeekerProfileRepository(
     }
 
     private companion object {
+        const val TAG = "JobLinkProfile"
         const val USERS_COLLECTION = "users"
         const val FIELD_ROLE = "role"
         const val FIELD_FULL_NAME = "fullName"
@@ -209,6 +220,9 @@ class FirebaseJobSeekerProfileRepository(
         const val FIELD_EXPERIENCE_SUMMARY = "experienceSummary"
         const val FIELD_SKILLS = "skills"
         const val FIELD_PREFERRED_JOB_TYPES = "preferredJobTypes"
+        const val FIELD_PREFERRED_WORK_MODES = "preferredWorkModes"
+        const val FIELD_PREFERRED_LOCATIONS = "preferredLocations"
+        const val FIELD_EXPERIENCE_LEVEL = "experienceLevel"
         const val FIELD_CV = "cv"
         const val FIELD_CV_FILE_NAME = "fileName"
         const val FIELD_CV_STORAGE_PATH = "storagePath"

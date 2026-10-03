@@ -1,5 +1,6 @@
 package com.kushan.joblink.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
+import com.kushan.joblink.data.repository.ProfileError
 import com.kushan.joblink.data.repository.ProfileResult
 import com.kushan.joblink.recommendation.JobRecommendation
 import com.kushan.joblink.recommendation.JobRecommendationScorer
@@ -36,6 +38,7 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val error: JobError? = null,
     val savedJobsError: JobError? = null,
+    val profileError: ProfileError? = null,
 ) {
     val categories: List<String>
         get() = allJobs
@@ -66,6 +69,10 @@ data class HomeUiState(
 class HomeViewModel(
     private val jobRepository: JobRepository,
     private val jobSeekerProfileRepository: JobSeekerProfileRepository,
+    private val logError: (String, Throwable) -> Unit = { message, throwable ->
+        Log.e(TAG, message, throwable)
+    },
+    private val logWarning: (String) -> Unit = { message -> Log.w(TAG, message) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -146,26 +153,28 @@ class HomeViewModel(
                     isRefreshing = isRefresh,
                     error = null,
                     savedJobsError = null,
+                    profileError = null,
                 )
             }
-            val jobsResult = jobRepository.getActiveJobs()
-            val savedJobsResult = jobRepository.getSavedJobs()
-            val profileResult = jobSeekerProfileRepository.getProfile()
+            val jobsResult = try {
+                jobRepository.getActiveJobs()
+            } catch (exception: Exception) {
+                logError("Unexpected exception while loading jobs", exception)
+                JobResult.Failure(JobError.UNKNOWN)
+            }
             when (jobsResult) {
                 is JobResult.Success -> {
                     _uiState.update {
                         it.copy(
                             allJobs = jobsResult.value,
-                            savedJobIds = (savedJobsResult as? JobResult.Success)
-                                ?.value
-                                ?.mapTo(mutableSetOf(), Job::id)
-                                ?: it.savedJobIds,
-                            profile = (profileResult as? ProfileResult.Success)?.value ?: it.profile,
+                            recommendations = recommendationsFor(it.profile, jobsResult.value),
                             isLoading = false,
                             isRefreshing = false,
-                            savedJobsError = (savedJobsResult as? JobResult.Failure)?.error,
-                        ).withRecommendations().withFilteredJobs()
+                        ).withFilteredJobs()
                     }
+
+                    loadSavedJobsWithoutBlockingFeed()
+                    loadProfileWithoutBlockingFeed(jobsResult.value)
                 }
 
                 is JobResult.Failure -> {
@@ -174,12 +183,71 @@ class HomeViewModel(
                             isLoading = false,
                             isRefreshing = false,
                             error = jobsResult.error,
-                            savedJobsError = (savedJobsResult as? JobResult.Failure)?.error,
                         )
                     }
                 }
             }
         }
+    }
+
+    private suspend fun loadSavedJobsWithoutBlockingFeed() {
+        val savedJobsResult = try {
+            jobRepository.getSavedJobs()
+        } catch (exception: Exception) {
+            logError("Saved jobs failed without blocking the job feed", exception)
+            JobResult.Failure(JobError.UNKNOWN)
+        }
+        _uiState.update { currentState ->
+            when (savedJobsResult) {
+                is JobResult.Success -> currentState.copy(
+                    savedJobIds = savedJobsResult.value.mapTo(mutableSetOf(), Job::id),
+                    savedJobsError = null,
+                )
+
+                is JobResult.Failure -> currentState.copy(savedJobsError = savedJobsResult.error)
+            }
+        }
+    }
+
+    private suspend fun loadProfileWithoutBlockingFeed(jobs: List<Job>) {
+        val profileResult = try {
+            jobSeekerProfileRepository.getProfile()
+        } catch (exception: Exception) {
+            logError("Profile loading failed without blocking the job feed", exception)
+            ProfileResult.Failure(ProfileError.UNKNOWN)
+        }
+        _uiState.update { currentState ->
+            when (profileResult) {
+                is ProfileResult.Success -> currentState.copy(
+                    profile = profileResult.value,
+                    recommendations = recommendationsFor(profileResult.value, jobs),
+                    profileError = null,
+                ).withFilteredJobs()
+
+                is ProfileResult.Failure -> {
+                    logWarning("Recommendations unavailable: ${profileResult.error}")
+                    currentState.copy(profileError = profileResult.error)
+                }
+            }
+        }
+    }
+
+    private fun recommendationsFor(
+        profile: JobSeekerProfile?,
+        jobs: List<Job>,
+    ): Map<String, JobRecommendation> {
+        if (profile == null) return emptyMap()
+        return jobs.mapNotNull { job ->
+            runCatching { JobRecommendationScorer.score(profile, job) }
+                .onFailure { exception ->
+                    logError(
+                        "Recommendation scoring failed for job ${job.id}; showing it unscored",
+                        exception,
+                    )
+                }
+                .getOrNull()
+                ?.let { recommendation -> job.id to recommendation }
+        }.toMap()
     }
 
     private fun updateFilters(update: HomeUiState.() -> HomeUiState) {
@@ -224,17 +292,10 @@ private fun HomeUiState.withFilteredJobs(): HomeUiState {
     )
 }
 
-private fun HomeUiState.withRecommendations(): HomeUiState {
-    val currentProfile = profile ?: return copy(recommendations = emptyMap())
-    return copy(
-        recommendations = allJobs.associate { job ->
-            job.id to JobRecommendationScorer.score(currentProfile, job)
-        },
-    )
-}
-
 private fun String.normalizedTerms(): List<String> =
     normalizedValue().split(" ").filter(String::isNotBlank)
 
 private fun String.normalizedValue(): String =
     trim().lowercase().replace(Regex("\\s+"), " ")
+
+private const val TAG = "JobLinkHome"

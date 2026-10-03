@@ -11,6 +11,7 @@ import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.data.repository.JobRepository
 import com.kushan.joblink.data.repository.JobResult
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
+import com.kushan.joblink.data.repository.ProfileError
 import com.kushan.joblink.data.repository.ProfileResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -134,6 +135,31 @@ class HomeViewModelTest {
         assertEquals(jobs.map(Job::id), viewModel.uiState.value.jobs.map(Job::id))
         assertEquals(null, viewModel.uiState.value.error)
         assertEquals(JobError.PERMISSION_DENIED, viewModel.uiState.value.savedJobsError)
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun profileFailureDoesNotHideSuccessfullyLoadedJobFeed() = runTest {
+        val jobs = filterableJobs()
+        val repository = FakeJobRepository(
+            activeJobResults = mutableListOf(JobResult.Success(jobs)),
+        )
+        val profileRepository = FakeJobSeekerProfileRepository(
+            result = ProfileResult.Failure(ProfileError.NETWORK),
+        )
+
+        val viewModel = HomeViewModel(
+            jobRepository = repository,
+            jobSeekerProfileRepository = profileRepository,
+            logError = { _, _ -> },
+            logWarning = {},
+        )
+        advanceUntilIdle()
+
+        assertEquals(jobs.map(Job::id), viewModel.uiState.value.jobs.map(Job::id))
+        assertEquals(null, viewModel.uiState.value.error)
+        assertEquals(ProfileError.NETWORK, viewModel.uiState.value.profileError)
+        assertTrue(viewModel.uiState.value.recommendations.isEmpty())
         assertFalse(viewModel.uiState.value.isLoading)
     }
 
