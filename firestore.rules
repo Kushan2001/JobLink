@@ -1,0 +1,114 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isJobSeeker() {
+      return signedIn() && currentUser().data.role == 'JOB_SEEKER';
+    }
+
+    function isEmployer() {
+      return signedIn() && currentUser().data.role == 'EMPLOYER';
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role in ['JOB_SEEKER', 'EMPLOYER'];
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+
+      match /savedJobs/{jobId} {
+        allow read, create, update, delete: if signedIn()
+          && request.auth.uid == userId
+          && isJobSeeker();
+      }
+    }
+
+    match /companies/{companyId} {
+      allow read, create, update: if signedIn()
+        && request.auth.uid == companyId
+        && isEmployer();
+      allow delete: if false;
+    }
+
+    match /jobs/{jobId} {
+      allow read: if signedIn()
+        && (
+          resource.data.active == true
+          || (isEmployer() && resource.data.employerId == request.auth.uid)
+        );
+      allow create: if isEmployer()
+        && request.resource.data.employerId == request.auth.uid
+        && request.resource.data.active == true;
+      allow update: if (
+          isEmployer()
+          && resource.data.employerId == request.auth.uid
+          && request.resource.data.employerId == resource.data.employerId
+        ) || (
+          isJobSeeker()
+          && resource.data.active == true
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['applicantCount'])
+          && request.resource.data.applicantCount == resource.data.applicantCount + 1
+        );
+      allow delete: if false;
+    }
+
+    match /applications/{applicationId} {
+      allow read: if signedIn()
+        && (
+          resource.data.applicantId == request.auth.uid
+          || resource.data.employerId == request.auth.uid
+        );
+      allow create: if isJobSeeker()
+        && request.resource.data.applicantId == request.auth.uid
+        && request.resource.data.status == 'SUBMITTED'
+        && get(
+          /databases/$(database)/documents/jobs/$(request.resource.data.jobId)
+        ).data.active == true
+        && get(
+          /databases/$(database)/documents/jobs/$(request.resource.data.jobId)
+        ).data.employerId == request.resource.data.employerId;
+      allow update: if isEmployer()
+        && resource.data.employerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in [
+          'REVIEWED',
+          'SHORTLISTED',
+          'INTERVIEW',
+          'OFFERED',
+          'REJECTED'
+        ];
+      allow delete: if false;
+    }
+
+    match /cvAccess/{accessId} {
+      allow create: if isJobSeeker()
+        && request.resource.data.applicantId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/applications/$(request.resource.data.applicationId)
+        ).data.applicantId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/applications/$(request.resource.data.applicationId)
+        ).data.employerId == request.resource.data.employerId;
+      allow read: if signedIn()
+        && (
+          resource.data.applicantId == request.auth.uid
+          || resource.data.employerId == request.auth.uid
+        );
+      allow update, delete: if false;
+    }
+  }
+}

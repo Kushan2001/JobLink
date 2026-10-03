@@ -1,5 +1,7 @@
 package com.kushan.joblink.data.repository
 
+import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -7,7 +9,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.kushan.joblink.data.model.Job
+import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.model.UserRole
+import com.kushan.joblink.data.model.WorkMode
 import kotlinx.coroutines.tasks.await
 
 class FirebaseJobRepository(
@@ -28,9 +32,7 @@ class FirebaseJobRepository(
                 .get()
                 .await()
                 .documents
-                .mapNotNull { document ->
-                    document.toObject(Job::class.java)?.copy(id = document.id)
-                }
+                .mapNotNull { document -> document.toJobOrNull() }
                 .sortedByDescending { it.createdAt?.seconds ?: Long.MIN_VALUE }
             JobResult.Success(jobs)
         } catch (exception: Exception) {
@@ -48,7 +50,7 @@ class FirebaseJobRepository(
             if (accountError != null) return JobResult.Failure(accountError)
 
             val document = firestore.collection(JOBS_COLLECTION).document(jobId).get().await()
-            val job = document.toObject(Job::class.java)?.copy(id = document.id)
+            val job = document.toJobOrNull()
             if (job == null || job.employerId != uid) {
                 JobResult.Failure(JobError.JOB_NOT_FOUND)
             } else {
@@ -70,7 +72,7 @@ class FirebaseJobRepository(
 
             val jobDocument = firestore.collection(JOBS_COLLECTION).document(jobId)
             val existingDocument = jobDocument.get().await()
-            val existingJob = existingDocument.toObject(Job::class.java)?.copy(id = jobId)
+            val existingJob = existingDocument.toJobOrNull()
             if (existingJob == null || existingJob.employerId != uid) {
                 return JobResult.Failure(JobError.JOB_NOT_FOUND)
             }
@@ -110,7 +112,7 @@ class FirebaseJobRepository(
 
             val jobDocument = firestore.collection(JOBS_COLLECTION).document(jobId)
             val document = jobDocument.get().await()
-            val job = document.toObject(Job::class.java)?.copy(id = document.id)
+            val job = document.toJobOrNull()
             if (job == null || job.employerId != uid) {
                 return JobResult.Failure(JobError.JOB_NOT_FOUND)
             }
@@ -127,21 +129,28 @@ class FirebaseJobRepository(
         }
     }
 
-    override suspend fun getActiveJobs(): JobResult<List<Job>> = try {
-        val documents = firestore.collection(JOBS_COLLECTION)
-            .whereEqualTo(FIELD_ACTIVE, true)
-            .orderBy(FIELD_CREATED_AT, Query.Direction.DESCENDING)
-            .limit(JOB_FEED_LIMIT)
-            .get()
-            .await()
-        JobResult.Success(
-            documents.documents.map { document ->
-                document.toObject(Job::class.java)?.copy(id = document.id)
-                    ?: throw IllegalStateException("Unable to read job ${document.id}")
-            },
+    override suspend fun getActiveJobs(): JobResult<List<Job>> {
+        Log.d(
+            TAG,
+            "Firestore query: jobs where active == true, limit $JOB_FEED_LIMIT; " +
+                "sorted locally by createdAt/updatedAt descending",
         )
-    } catch (exception: Exception) {
-        JobResult.Failure(exception.toJobError())
+        return try {
+            val documents = firestore.collection(JOBS_COLLECTION)
+                .whereEqualTo(FIELD_ACTIVE, true)
+                .limit(JOB_FEED_LIMIT)
+                .get()
+                .await()
+            val jobs = documents.documents
+                .mapNotNull { document -> document.toJobOrNull() }
+                .sortedByDescending { job ->
+                    job.createdAt?.seconds ?: job.updatedAt?.seconds ?: Long.MIN_VALUE
+                }
+            JobResult.Success(jobs)
+        } catch (exception: Exception) {
+            logFirebaseFailure("load active jobs", exception)
+            JobResult.Failure(exception.toJobError())
+        }
     }
 
     override suspend fun getJob(jobId: String): JobResult<Job> {
@@ -149,13 +158,14 @@ class FirebaseJobRepository(
 
         return try {
             val document = firestore.collection(JOBS_COLLECTION).document(jobId).get().await()
-            val job = document.toObject(Job::class.java)?.copy(id = document.id)
+            val job = document.toJobOrNull()
             if (job == null || !job.active) {
                 JobResult.Failure(JobError.JOB_NOT_FOUND)
             } else {
                 JobResult.Success(job)
             }
         } catch (exception: Exception) {
+            logFirebaseFailure("load job details", exception)
             JobResult.Failure(exception.toJobError())
         }
     }
@@ -178,6 +188,7 @@ class FirebaseJobRepository(
                 },
             )
         } catch (exception: Exception) {
+            logFirebaseFailure("load saved jobs", exception)
             JobResult.Failure(exception.toJobError())
         }
     }
@@ -207,7 +218,7 @@ class FirebaseJobRepository(
             if (accountError != null) return JobResult.Failure(accountError)
 
             val jobDocument = firestore.collection(JOBS_COLLECTION).document(jobId).get().await()
-            val job = jobDocument.toObject(Job::class.java)?.copy(id = jobDocument.id)
+            val job = jobDocument.toJobOrNull()
             if (job == null || !job.active) {
                 return JobResult.Failure(JobError.JOB_NOT_FOUND)
             }
@@ -306,7 +317,77 @@ class FirebaseJobRepository(
         // Saved-job references created by earlier app versions did not contain a snapshot.
         val legacyJobId = getString(FIELD_JOB_ID).orEmpty().ifBlank { id }
         val legacyJob = firestore.collection(JOBS_COLLECTION).document(legacyJobId).get().await()
-        return legacyJob.toObject(Job::class.java)?.copy(id = legacyJob.id)
+        return legacyJob.toJobOrNull()
+    }
+
+    private fun DocumentSnapshot.toJobOrNull(): Job? = try {
+        val title = getString(FIELD_TITLE).orEmpty().trim()
+        if (title.isBlank()) {
+            Log.w(TAG, "Skipping job $id because title is missing or blank")
+            return null
+        }
+        Job(
+            id = id,
+            employerId = getString(FIELD_EMPLOYER_ID).orEmpty(),
+            companyName = getString(FIELD_COMPANY_NAME).orEmpty(),
+            title = title,
+            description = getString(FIELD_DESCRIPTION).orEmpty(),
+            category = getString(FIELD_CATEGORY).orEmpty(),
+            location = getString(FIELD_LOCATION).orEmpty(),
+            workMode = enumValueOrDefault(FIELD_WORK_MODE, WorkMode.ONSITE),
+            jobType = enumValueOrDefault(FIELD_JOB_TYPE, JobType.FULL_TIME),
+            salaryMin = getNumberAsLong(FIELD_SALARY_MIN),
+            salaryMax = getNumberAsLong(FIELD_SALARY_MAX),
+            currency = getString(FIELD_CURRENCY).orEmpty(),
+            experienceLevel = getString(FIELD_EXPERIENCE_LEVEL).orEmpty(),
+            requiredSkills = getStringList(FIELD_REQUIRED_SKILLS),
+            requirements = getStringList(FIELD_REQUIREMENTS),
+            benefits = getStringList(FIELD_BENEFITS),
+            applicationDeadline = get(FIELD_APPLICATION_DEADLINE) as? Timestamp,
+            createdAt = get(FIELD_CREATED_AT) as? Timestamp,
+            updatedAt = get(FIELD_UPDATED_AT) as? Timestamp,
+            active = getBoolean(FIELD_ACTIVE) ?: true,
+            applicantCount = getNumberAsLong(FIELD_APPLICANT_COUNT) ?: 0L,
+        )
+    } catch (exception: Exception) {
+        Log.e(TAG, "Skipping malformed job $id without failing the feed", exception)
+        null
+    }
+
+    private inline fun <reified T : Enum<T>> DocumentSnapshot.enumValueOrDefault(
+        field: String,
+        default: T,
+    ): T {
+        val rawValue = getString(field)
+            ?.trim()
+            ?.uppercase()
+            ?.replace(Regex("[^A-Z0-9]+"), "_")
+            .orEmpty()
+        return enumValues<T>().firstOrNull { it.name == rawValue } ?: default
+    }
+
+    private fun DocumentSnapshot.getNumberAsLong(field: String): Long? =
+        (get(field) as? Number)?.toLong()
+
+    private fun DocumentSnapshot.getStringList(field: String): List<String> =
+        (get(field) as? List<*>)
+            .orEmpty()
+            .filterIsInstance<String>()
+
+    private fun logFirebaseFailure(operation: String, exception: Exception) {
+        val firestoreException = generateSequence<Throwable>(exception) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .firstOrNull()
+        if (firestoreException != null) {
+            Log.e(
+                TAG,
+                "Firestore failed to $operation: code=${firestoreException.code}, " +
+                    "message=${firestoreException.message}",
+                firestoreException,
+            )
+        } else {
+            Log.e(TAG, "Failed to $operation", exception)
+        }
     }
 
     private fun Job.toFirestoreData(): Map<String, Any?> = mapOf(
@@ -390,6 +471,7 @@ class FirebaseJobRepository(
     }
 
     private companion object {
+        const val TAG = "JobLinkFirestore"
         const val USERS_COLLECTION = "users"
         const val COMPANIES_COLLECTION = "companies"
         const val JOBS_COLLECTION = "jobs"

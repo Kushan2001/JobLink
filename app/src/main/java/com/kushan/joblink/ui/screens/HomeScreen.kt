@@ -457,16 +457,32 @@ private fun JobFeed(
         } else {
             item {
                 Text(
-                    text = stringResource(R.string.recommended_recent_jobs),
+                    text = stringResource(
+                        if (uiState.profile != null) {
+                            R.string.recommended_for_you
+                        } else {
+                            R.string.recent_jobs
+                        },
+                    ),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
+                if (uiState.profile != null) {
+                    Text(
+                        text = stringResource(R.string.recommendation_disclaimer),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             items(uiState.jobs, key = { it.id }) { job ->
+                val recommendation = uiState.recommendations[job.id]
                 JobCard(
                     job = job,
                     onClick = { onJobClick(job.id) },
                     isSaved = job.id in uiState.savedJobIds,
+                    recommendationScore = recommendation?.score,
+                    matchedSkillCount = recommendation?.matchedSkillCount ?: 0,
                 )
             }
         }
