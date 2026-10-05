@@ -15,6 +15,7 @@ import com.kushan.joblink.data.repository.ApplicationRepository
 import com.kushan.joblink.data.repository.EmployerProfileRepository
 import com.kushan.joblink.data.repository.JobSeekerProfileRepository
 import com.kushan.joblink.data.repository.JobRepository
+import com.kushan.joblink.notification.NotificationNavigation
 import com.kushan.joblink.ui.screens.AuthenticationLoadingScreen
 import com.kushan.joblink.ui.screens.ApplicationDetailsScreen
 import com.kushan.joblink.ui.screens.ApplicationScreen
@@ -59,6 +60,8 @@ fun JobLinkNavHost(
     jobSeekerProfileRepository: JobSeekerProfileRepository,
     jobRepository: JobRepository,
     modifier: Modifier = Modifier,
+    notificationNavigation: NotificationNavigation? = null,
+    onNotificationNavigationHandled: () -> Unit = {},
 ) {
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -78,6 +81,35 @@ fun JobLinkNavHost(
                 }
             }
 
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(notificationNavigation, authUiState.currentUser?.role) {
+        val target = notificationNavigation ?: return@LaunchedEffect
+        when (authUiState.currentUser?.role) {
+            UserRole.JOB_SEEKER -> {
+                when (target) {
+                    is NotificationNavigation.ApplicationDetails -> {
+                        navController.navigate(
+                            ApplicationDetailsDestination(target.applicationId),
+                        ) {
+                            launchSingleTop = true
+                        }
+                    }
+
+                    is NotificationNavigation.JobDetails -> {
+                        navController.navigate(JobDetailsDestination(target.jobId)) {
+                            launchSingleTop = true
+                        }
+                    }
+
+                    NotificationNavigation.Home -> Unit
+                }
+                onNotificationNavigationHandled()
+            }
+
+            UserRole.EMPLOYER -> onNotificationNavigationHandled()
             null -> Unit
         }
     }
