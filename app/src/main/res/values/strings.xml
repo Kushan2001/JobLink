@@ -258,6 +258,7 @@
     <string name="manage_company_profile">Keep company details current.</string>
     <string name="recent_applicants">Recent applicants</string>
     <string name="no_recent_applicants">Recent applications will appear here when candidates apply.</string>
+    <string name="recent_applicants_load_error">Recent applicants could not be refreshed. Other dashboard information is still available.</string>
     <string name="loading_employer_dashboard">Loading your hiring dashboard…</string>
     <string name="employer_dashboard_load_error">The employer dashboard could not be loaded.</string>
     <string name="employer_dashboard_partial_error">Some dashboard information could not be refreshed.</string>
