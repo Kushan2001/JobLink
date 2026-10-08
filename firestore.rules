@@ -6,88 +6,545 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function userPath(userId) {
+      return /databases/$(database)/documents/users/$(userId);
+    }
+
     function currentUser() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return get(userPath(request.auth.uid));
     }
 
     function isJobSeeker() {
-      return signedIn() && currentUser().data.role == 'JOB_SEEKER';
+      return signedIn()
+        && exists(userPath(request.auth.uid))
+        && currentUser().data.role == 'JOB_SEEKER';
     }
 
     function isEmployer() {
-      return signedIn() && currentUser().data.role == 'EMPLOYER';
+      return signedIn()
+        && exists(userPath(request.auth.uid))
+        && currentUser().data.role == 'EMPLOYER';
+    }
+
+    function validOptionalString(data, field, maximumLength) {
+      return data.get(field, '') is string
+        && data.get(field, '').size() <= maximumLength;
+    }
+
+    function validOptionalStringList(data, field, maximumItems) {
+      return data.get(field, []) is list
+        && data.get(field, []).size() <= maximumItems;
+    }
+
+    function validCvMetadata(userId, data) {
+      return !('cv' in data)
+        || (
+          data.cv is map
+          && data.cv.keys().hasOnly([
+            'fileName',
+            'storagePath',
+            'contentType',
+            'sizeBytes',
+            'uploadedAt'
+          ])
+          && data.cv.keys().hasAll([
+            'fileName',
+            'storagePath',
+            'contentType',
+            'sizeBytes',
+            'uploadedAt'
+          ])
+          && data.cv.fileName is string
+          && data.cv.fileName.size() > 0
+          && data.cv.fileName.size() <= 255
+          && data.cv.storagePath == 'users/' + userId + '/cv/current.pdf'
+          && data.cv.contentType == 'application/pdf'
+          && data.cv.sizeBytes is int
+          && data.cv.sizeBytes > 0
+          && data.cv.sizeBytes <= 10 * 1024 * 1024
+          && data.cv.uploadedAt is timestamp
+        );
+    }
+
+    function validUserData(userId, data) {
+      return data.keys().hasOnly([
+          'uid',
+          'fullName',
+          'email',
+          'role',
+          'createdAt',
+          'professionalHeadline',
+          'location',
+          'phone',
+          'bio',
+          'education',
+          'experienceSummary',
+          'skills',
+          'preferredJobTypes',
+          'preferredWorkModes',
+          'preferredLocations',
+          'experienceLevel',
+          'cv'
+        ])
+        && data.keys().hasAll(['uid', 'fullName', 'email', 'role', 'createdAt'])
+        && data.uid == userId
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.fullName.size() <= 150
+        && data.email is string
+        && data.email.size() > 0
+        && data.email.size() <= 320
+        && data.role in ['JOB_SEEKER', 'EMPLOYER']
+        && data.createdAt is timestamp
+        && validOptionalString(data, 'professionalHeadline', 200)
+        && validOptionalString(data, 'location', 200)
+        && validOptionalString(data, 'phone', 50)
+        && validOptionalString(data, 'bio', 5000)
+        && validOptionalString(data, 'education', 5000)
+        && validOptionalString(data, 'experienceSummary', 5000)
+        && validOptionalStringList(data, 'skills', 100)
+        && validOptionalStringList(data, 'preferredJobTypes', 20)
+        && validOptionalStringList(data, 'preferredWorkModes', 10)
+        && validOptionalStringList(data, 'preferredLocations', 50)
+        && validOptionalString(data, 'experienceLevel', 100)
+        && validCvMetadata(userId, data);
+    }
+
+    function validCompanyData(companyId, data) {
+      return data.keys().hasOnly([
+          'ownerUid',
+          'companyName',
+          'companyDescription',
+          'industry',
+          'companySize',
+          'location',
+          'website',
+          'contactEmail',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasAll([
+          'ownerUid',
+          'companyName',
+          'companyDescription',
+          'industry',
+          'companySize',
+          'location',
+          'website',
+          'contactEmail',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.ownerUid == companyId
+        && data.companyName is string
+        && data.companyName.size() > 0
+        && data.companyName.size() <= 200
+        && data.companyDescription is string
+        && data.companyDescription.size() <= 10000
+        && data.industry is string
+        && data.industry.size() <= 200
+        && data.companySize is string
+        && data.companySize.size() <= 100
+        && data.location is string
+        && data.location.size() <= 200
+        && data.website is string
+        && data.website.size() <= 500
+        && data.contactEmail is string
+        && data.contactEmail.size() > 0
+        && data.contactEmail.size() <= 320
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function jobPath(jobId) {
+      return /databases/$(database)/documents/jobs/$(jobId);
+    }
+
+    function ownsJob(jobId) {
+      return isEmployer()
+        && exists(jobPath(jobId))
+        && get(jobPath(jobId)).data.employerId == request.auth.uid;
+    }
+
+    function validJobTypes(data) {
+      return data.id is string
+        && data.employerId is string
+        && data.companyName is string
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 200
+        && validOptionalString(data, 'description', 20000)
+        && validOptionalString(data, 'category', 200)
+        && validOptionalString(data, 'location', 200)
+        && (!('workMode' in data) || data.workMode in ['ONSITE', 'REMOTE', 'HYBRID'])
+        && (!('jobType' in data) || data.jobType in [
+          'FULL_TIME',
+          'PART_TIME',
+          'CONTRACT',
+          'INTERNSHIP',
+          'FREELANCE',
+          'TEMPORARY'
+        ])
+        && (!('salaryMin' in data) || data.salaryMin == null || data.salaryMin is int)
+        && (!('salaryMax' in data) || data.salaryMax == null || data.salaryMax is int)
+        && (!('currency' in data) || data.currency is string)
+        && validOptionalString(data, 'experienceLevel', 200)
+        && validOptionalStringList(data, 'requiredSkills', 100)
+        && validOptionalStringList(data, 'requirements', 100)
+        && validOptionalStringList(data, 'benefits', 100)
+        && (!('applicationDeadline' in data)
+          || data.applicationDeadline == null
+          || data.applicationDeadline is timestamp)
+        && (!('createdAt' in data) || data.createdAt is timestamp)
+        && (!('updatedAt' in data) || data.updatedAt is timestamp)
+        && data.active is bool
+        && (
+          !('applicantCount' in data)
+          || (data.applicantCount is int && data.applicantCount >= 0)
+        );
+    }
+
+    function validJobData(data) {
+      return data.keys().hasOnly([
+          'id',
+          'employerId',
+          'companyName',
+          'title',
+          'description',
+          'category',
+          'location',
+          'workMode',
+          'jobType',
+          'salaryMin',
+          'salaryMax',
+          'currency',
+          'experienceLevel',
+          'requiredSkills',
+          'requirements',
+          'benefits',
+          'applicationDeadline',
+          'createdAt',
+          'updatedAt',
+          'active',
+          'applicantCount'
+        ])
+        && data.keys().hasAll(['id', 'employerId', 'companyName', 'title', 'active'])
+        && validJobTypes(data);
+    }
+
+    function validApplicationData(applicationId, data) {
+      let user = currentUser().data;
+      let job = get(jobPath(data.jobId)).data;
+      return data.keys().hasOnly([
+          'applicationId',
+          'jobId',
+          'employerId',
+          'applicantId',
+          'jobTitle',
+          'companyName',
+          'applicantFullName',
+          'applicantEmail',
+          'applicantHeadline',
+          'applicantLocation',
+          'applicantPhone',
+          'applicantBio',
+          'applicantEducation',
+          'applicantExperienceSummary',
+          'applicantSkills',
+          'submittedAt',
+          'status',
+          'coverMessage',
+          'cvReference'
+        ])
+        && data.keys().hasAll([
+          'applicationId',
+          'jobId',
+          'employerId',
+          'applicantId',
+          'jobTitle',
+          'companyName',
+          'applicantFullName',
+          'applicantEmail',
+          'applicantHeadline',
+          'applicantLocation',
+          'applicantPhone',
+          'applicantBio',
+          'applicantEducation',
+          'applicantExperienceSummary',
+          'applicantSkills',
+          'submittedAt',
+          'status',
+          'coverMessage',
+          'cvReference'
+        ])
+        && data.applicationId == applicationId
+        && applicationId == data.jobId + '_' + request.auth.uid
+        && data.applicantId == request.auth.uid
+        && data.employerId == job.employerId
+        && data.jobTitle == job.title
+        && data.companyName == job.companyName
+        && job.active == true
+        && data.applicantFullName == user.fullName
+        && data.applicantEmail == user.email
+        && data.applicantHeadline == user.get('professionalHeadline', '')
+        && data.applicantLocation == user.get('location', '')
+        && data.applicantPhone == user.get('phone', '')
+        && data.applicantBio == user.get('bio', '')
+        && data.applicantEducation == user.get('education', '')
+        && data.applicantExperienceSummary == user.get('experienceSummary', '')
+        && data.applicantSkills == user.get('skills', [])
+        && data.submittedAt == request.time
+        && data.status == 'SUBMITTED'
+        && (data.coverMessage == null
+          || (data.coverMessage is string && data.coverMessage.size() <= 5000))
+        && data.cvReference == 'users/' + request.auth.uid + '/cv/current.pdf'
+        && data.cvReference == user.cv.storagePath;
+    }
+
+    function applicationBatchIsConsistent(applicationId, data) {
+      let job = get(jobPath(data.jobId)).data;
+      let jobAfter = getAfter(jobPath(data.jobId)).data;
+      let accessPath = /databases/$(database)/documents/cvAccess/$(job.employerId + '_' + request.auth.uid);
+      let accessAfter = getAfter(accessPath).data;
+      return jobAfter.applicantCount == job.get('applicantCount', 0) + 1
+        && accessAfter.applicationId == applicationId
+        && accessAfter.jobId == data.jobId
+        && accessAfter.employerId == job.employerId
+        && accessAfter.applicantId == request.auth.uid;
+    }
+
+    function validApplicantCountIncrement(jobId) {
+      let applicationId = jobId + '_' + request.auth.uid;
+      let applicationPath = /databases/$(database)/documents/applications/$(applicationId);
+      let applicationAfter = getAfter(applicationPath).data;
+      return !exists(applicationPath)
+        && applicationAfter.applicationId == applicationId
+        && applicationAfter.jobId == jobId
+        && applicationAfter.applicantId == request.auth.uid
+        && applicationAfter.employerId == resource.data.employerId;
+    }
+
+    function validCvAccess(accessId, data) {
+      let applicationPath = /databases/$(database)/documents/applications/$(data.applicationId);
+      let application = getAfter(applicationPath).data;
+      return data.keys().hasOnly([
+          'employerId',
+          'applicantId',
+          'jobId',
+          'applicationId',
+          'grantedAt'
+        ])
+        && data.keys().hasAll([
+          'employerId',
+          'applicantId',
+          'jobId',
+          'applicationId',
+          'grantedAt'
+        ])
+        && data.applicantId == request.auth.uid
+        && accessId == data.employerId + '_' + request.auth.uid
+        && data.applicationId == data.jobId + '_' + request.auth.uid
+        && application.applicationId == data.applicationId
+        && application.applicantId == request.auth.uid
+        && application.employerId == data.employerId
+        && application.jobId == data.jobId
+        && data.grantedAt == request.time;
     }
 
     match /users/{userId} {
-      allow create: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.data.role in ['JOB_SEEKER', 'EMPLOYER'];
-      allow read: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.uid == resource.data.uid;
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'fullName', 'email', 'role', 'createdAt'
+        ])
+        && validUserData(userId, request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      allow update: if isOwner(userId)
+        && validUserData(userId, request.resource.data)
+        && (
+          (
+            resource.data.role == 'JOB_SEEKER'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'fullName',
+              'professionalHeadline',
+              'location',
+              'phone',
+              'bio',
+              'education',
+              'experienceSummary',
+              'skills',
+              'preferredJobTypes',
+              'preferredWorkModes',
+              'preferredLocations',
+              'experienceLevel',
+              'cv'
+            ])
+          )
+          || (
+            resource.data.role == 'EMPLOYER'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName'])
+          )
+        );
+
       allow delete: if false;
 
       match /savedJobs/{jobId} {
-        allow read, create, update, delete: if signedIn()
-          && request.auth.uid == userId
-          && isJobSeeker();
+        allow get, list: if isOwner(userId) && isJobSeeker();
+
+        allow create, update: if isOwner(userId)
+          && isJobSeeker()
+          && request.resource.data.keys().hasOnly(['jobId', 'job', 'savedAt'])
+          && request.resource.data.keys().hasAll(['jobId', 'job', 'savedAt'])
+          && request.resource.data.jobId == jobId
+          && request.resource.data.savedAt == request.time
+          && request.resource.data.job is map
+          && request.resource.data.job.id == jobId
+          && exists(jobPath(jobId))
+          && get(jobPath(jobId)).data.active == true
+          && request.resource.data.job.employerId == get(jobPath(jobId)).data.employerId
+          && request.resource.data.job.title == get(jobPath(jobId)).data.title;
+
+        allow delete: if isOwner(userId) && isJobSeeker();
       }
 
       match /messagingRegistrations/{registrationId} {
-        allow read, create, update, delete: if signedIn()
-          && request.auth.uid == userId;
+        allow read: if false;
+
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            'installationId', 'platform', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasAll([
+            'installationId', 'platform', 'updatedAt'
+          ])
+          && request.resource.data.installationId is string
+          && request.resource.data.installationId.size() > 0
+          && request.resource.data.installationId.size() <= 4096
+          && request.resource.data.platform == 'ANDROID'
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if isOwner(userId);
       }
     }
 
     match /companies/{companyId} {
-      allow read, create, update: if signedIn()
-        && request.auth.uid == companyId
-        && isEmployer();
+      allow get: if isOwner(companyId) && isEmployer();
+      allow list: if false;
+
+      allow create: if isOwner(companyId)
+        && isEmployer()
+        && validCompanyData(companyId, request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isOwner(companyId)
+        && isEmployer()
+        && validCompanyData(companyId, request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'companyName',
+          'companyDescription',
+          'industry',
+          'companySize',
+          'location',
+          'website',
+          'contactEmail',
+          'updatedAt'
+        ]);
+
       allow delete: if false;
     }
 
     match /jobs/{jobId} {
-      allow read: if signedIn()
+      allow get, list: if signedIn()
         && (
           resource.data.active == true
           || (isEmployer() && resource.data.employerId == request.auth.uid)
         );
+
       allow create: if isEmployer()
+        && validJobData(request.resource.data)
+        && request.resource.data.id == jobId
         && request.resource.data.employerId == request.auth.uid
-        && request.resource.data.active == true;
+        && exists(/databases/$(database)/documents/companies/$(request.auth.uid))
+        && request.resource.data.companyName == get(
+          /databases/$(database)/documents/companies/$(request.auth.uid)
+        ).data.companyName
+        && request.resource.data.active == true
+        && request.resource.data.applicantCount == 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
       allow update: if (
           isEmployer()
           && resource.data.employerId == request.auth.uid
-          && request.resource.data.employerId == resource.data.employerId
+          && request.resource.data.employerId == request.auth.uid
+          && validJobData(request.resource.data)
+          && exists(/databases/$(database)/documents/companies/$(request.auth.uid))
+          && request.resource.data.companyName == get(
+            /databases/$(database)/documents/companies/$(request.auth.uid)
+          ).data.companyName
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'companyName',
+            'title',
+            'description',
+            'category',
+            'location',
+            'workMode',
+            'jobType',
+            'salaryMin',
+            'salaryMax',
+            'currency',
+            'experienceLevel',
+            'requiredSkills',
+            'requirements',
+            'benefits',
+            'applicationDeadline',
+            'active',
+            'updatedAt'
+          ])
         ) || (
           isJobSeeker()
           && resource.data.active == true
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['applicantCount'])
-          && request.resource.data.applicantCount == resource.data.applicantCount + 1
+          && request.resource.data.applicantCount
+            == resource.data.get('applicantCount', 0) + 1
+          && validApplicantCountIncrement(jobId)
         );
+
       allow delete: if false;
     }
 
     match /applications/{applicationId} {
-      allow read: if signedIn()
+      allow get: if signedIn()
         && (
           resource.data.applicantId == request.auth.uid
-          || resource.data.employerId == request.auth.uid
+          || ownsJob(resource.data.jobId)
         );
+
+      // List queries must constrain applicantId or the immutable employerId snapshot.
+      // Both values are bound to authenticated ownership when the application is created.
+      allow list: if signedIn()
+        && (
+          resource.data.applicantId == request.auth.uid
+          || (isEmployer() && resource.data.employerId == request.auth.uid)
+        );
+
       allow create: if isJobSeeker()
-        && request.resource.data.applicantId == request.auth.uid
-        && request.resource.data.status == 'SUBMITTED'
-        && get(
-          /databases/$(database)/documents/jobs/$(request.resource.data.jobId)
-        ).data.active == true
-        && get(
-          /databases/$(database)/documents/jobs/$(request.resource.data.jobId)
-        ).data.employerId == request.resource.data.employerId;
-      allow update: if isEmployer()
-        && resource.data.employerId == request.auth.uid
+        && validApplicationData(applicationId, request.resource.data)
+        && applicationBatchIsConsistent(applicationId, request.resource.data);
+
+      allow update: if ownsJob(resource.data.jobId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status in [
           'REVIEWED',
@@ -96,24 +553,26 @@ service cloud.firestore {
           'OFFERED',
           'REJECTED'
         ];
+
       allow delete: if false;
     }
 
     match /cvAccess/{accessId} {
-      allow create: if isJobSeeker()
-        && request.resource.data.applicantId == request.auth.uid
-        && getAfter(
-          /databases/$(database)/documents/applications/$(request.resource.data.applicationId)
-        ).data.applicantId == request.auth.uid
-        && getAfter(
-          /databases/$(database)/documents/applications/$(request.resource.data.applicationId)
-        ).data.employerId == request.resource.data.employerId;
-      allow read: if signedIn()
+      allow get: if signedIn()
         && (
           resource.data.applicantId == request.auth.uid
-          || resource.data.employerId == request.auth.uid
+          || ownsJob(resource.data.jobId)
         );
-      allow update, delete: if false;
+      allow list: if false;
+
+      allow create, update: if isJobSeeker()
+        && validCvAccess(accessId, request.resource.data);
+
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
