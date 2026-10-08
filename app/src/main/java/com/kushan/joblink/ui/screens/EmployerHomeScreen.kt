@@ -56,7 +56,7 @@ fun EmployerHomeScreen(
 
     when {
         uiState.isLoading -> EmployerHomeLoading(modifier)
-        uiState.companyProfile == null && uiState.hasError -> EmployerHomeLoadError(
+        uiState.companyProfile == null && uiState.profileError != null -> EmployerHomeLoadError(
             onRetry = viewModel::retry,
             onLogout = onLogout,
             modifier = modifier,
@@ -125,7 +125,7 @@ private fun EmployerDashboard(
                 )
             }
         }
-        if (uiState.hasError) {
+        if (uiState.hasDashboardError) {
             item {
                 Surface(
                     modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),
@@ -192,7 +192,21 @@ private fun EmployerDashboard(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        if (uiState.recentApplicants.isEmpty()) {
+        if (uiState.hasRecentApplicantsError) {
+            item {
+                Surface(
+                    modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Column(Modifier.padding(JobLinkSpacing.medium)) {
+                        Text(stringResource(R.string.recent_applicants_load_error))
+                        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                    }
+                }
+            }
+        } else if (uiState.recentApplicants.isEmpty()) {
             item {
                 Surface(
                     modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),

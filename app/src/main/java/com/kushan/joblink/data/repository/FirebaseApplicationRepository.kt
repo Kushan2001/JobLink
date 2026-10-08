@@ -1,5 +1,7 @@
 package com.kushan.joblink.data.repository
 
+import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -32,10 +34,20 @@ class FirebaseApplicationRepository(
             ?: return ApplicationResult.Failure(ApplicationError.NOT_AUTHENTICATED)
         if (limit <= 0L) return ApplicationResult.Success(emptyList())
 
+        var failingPath = "users/$employerId"
+        var dashboardQuery = "document($failingPath)"
         return try {
+            Log.d(TAG, "Dashboard read: $dashboardQuery")
             val profileError = userDocument(employerId).get().await().employerProfileError()
             if (profileError != null) return ApplicationResult.Failure(profileError)
 
+            failingPath = APPLICATIONS_COLLECTION
+            dashboardQuery = "applications where employerId == $employerId, " +
+                "orderBy submittedAt DESC, limit $limit"
+            Log.d(
+                TAG,
+                "Dashboard query: $dashboardQuery",
+            )
             val applications = firestore.collection(APPLICATIONS_COLLECTION)
                 .whereEqualTo(FIELD_EMPLOYER_ID, employerId)
                 .orderBy(FIELD_SUBMITTED_AT, Query.Direction.DESCENDING)
@@ -43,13 +55,18 @@ class FirebaseApplicationRepository(
                 .get()
                 .await()
                 .documents
-                .mapNotNull { document ->
-                    document.toObject(JobApplication::class.java)?.copy(
-                        applicationId = document.id,
-                    )
-                }
+                .mapNotNull { document -> document.toRecentApplicantSummaryOrNull() }
             ApplicationResult.Success(applications)
         } catch (exception: Exception) {
+            val firestoreException = exception.findFirestoreException()
+            Log.e(
+                TAG,
+                "Recent Applicants failed: path=$failingPath; " +
+                    "code=${firestoreException?.code ?: "NON_FIREBASE"}; " +
+                    "message=${firestoreException?.message ?: exception.message}; " +
+                    "query=$dashboardQuery",
+                exception,
+            )
             ApplicationResult.Failure(exception.toApplicationError())
         }
     }
@@ -424,6 +441,11 @@ class FirebaseApplicationRepository(
             .orEmpty()
             .filterIsInstance<String>()
 
+    private fun DocumentSnapshot.toRecentApplicantSummaryOrNull(): JobApplication? =
+        data?.let { applicationData ->
+            RecentApplicantSummaryMapper.from(id, applicationData)
+        }
+
     private fun JobApplication.toFirestoreData(): Map<String, Any?> = mapOf(
         FIELD_APPLICATION_ID to applicationId,
         FIELD_JOB_ID to jobId,
@@ -459,6 +481,15 @@ class FirebaseApplicationRepository(
         return ApplicationError.UNKNOWN
     }
 
+    private fun Throwable.findFirestoreException(): FirebaseFirestoreException? {
+        var throwable: Throwable? = this
+        while (throwable != null) {
+            if (throwable is FirebaseFirestoreException) return throwable
+            throwable = throwable.cause
+        }
+        return null
+    }
+
     private fun FirebaseFirestoreException.toApplicationError(): ApplicationError = when (code) {
         FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
             ApplicationError.PERMISSION_DENIED
@@ -484,6 +515,7 @@ class FirebaseApplicationRepository(
     ) : Exception()
 
     private companion object {
+        const val TAG = "JobLinkApplications"
         const val USERS_COLLECTION = "users"
         const val JOBS_COLLECTION = "jobs"
         const val APPLICATIONS_COLLECTION = "applications"
@@ -522,5 +554,22 @@ class FirebaseApplicationRepository(
         const val FIELD_CV_REFERENCE = "cvReference"
         const val FIELD_APPLICANT_COUNT = "applicantCount"
         const val FIELD_GRANTED_AT = "grantedAt"
+    }
+}
+
+internal object RecentApplicantSummaryMapper {
+    fun from(documentId: String, data: Map<String, Any?>): JobApplication {
+        val storedStatus = data["status"] as? String
+        return JobApplication(
+            applicationId = documentId,
+            jobId = data["jobId"] as? String ?: "",
+            employerId = data["employerId"] as? String ?: "",
+            applicantId = data["applicantId"] as? String ?: "",
+            jobTitle = data["jobTitle"] as? String ?: "",
+            applicantFullName = data["applicantFullName"] as? String ?: "",
+            submittedAt = data["submittedAt"] as? Timestamp,
+            status = ApplicationStatus.entries.firstOrNull { it.name == storedStatus }
+                ?: ApplicationStatus.SUBMITTED,
+        )
     }
 }

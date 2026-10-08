@@ -57,6 +57,26 @@ class EmployerHomeViewModelTest {
     }
 
     @Test
+    fun emptyRecentApplicantsIsAValidDashboardResult() = runTest {
+        val viewModel = EmployerHomeViewModel(
+            employerProfileRepository = DashboardProfileRepository(
+                ProfileResult.Success(companyProfile()),
+            ),
+            jobRepository = DashboardJobRepository(JobResult.Success(emptyList())),
+            applicationRepository = DashboardApplicationRepository(
+                ApplicationResult.Success(emptyList()),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.recentApplicants.isEmpty())
+        assertFalse(state.hasRecentApplicantsError)
+        assertFalse(state.hasError)
+        assertFalse(state.isLoading)
+    }
+
+    @Test
     fun partialRefreshFailureKeepsPreviouslyLoadedDashboardData() = runTest {
         val profileRepository = DashboardProfileRepository(
             ProfileResult.Success(companyProfile()),
@@ -82,7 +102,33 @@ class EmployerHomeViewModelTest {
         assertEquals(1, viewModel.uiState.value.activeJobsCount)
         assertEquals(ApplicationError.NETWORK, viewModel.uiState.value.applicationError)
         assertTrue(viewModel.uiState.value.hasError)
+        assertFalse(viewModel.uiState.value.hasDashboardError)
+        assertTrue(viewModel.uiState.value.hasRecentApplicantsError)
         assertFalse(viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun recentApplicantFailureDoesNotHideSuccessfulDashboardSections() = runTest {
+        val jobs = listOf(Job(id = "job-1", active = true, applicantCount = 4))
+        val viewModel = EmployerHomeViewModel(
+            employerProfileRepository = DashboardProfileRepository(
+                ProfileResult.Success(companyProfile()),
+            ),
+            jobRepository = DashboardJobRepository(JobResult.Success(jobs)),
+            applicationRepository = DashboardApplicationRepository(
+                ApplicationResult.Failure(ApplicationError.UNKNOWN),
+            ),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("JobLink Labs", state.companyProfile?.companyName)
+        assertEquals(jobs, state.jobs)
+        assertEquals(1, state.activeJobsCount)
+        assertEquals(4L, state.applicationsCount)
+        assertFalse(state.hasDashboardError)
+        assertTrue(state.hasRecentApplicantsError)
+        assertFalse(state.isLoading)
     }
 
     @Test
@@ -101,6 +147,7 @@ class EmployerHomeViewModelTest {
         assertEquals(null, viewModel.uiState.value.companyProfile)
         assertEquals(ProfileError.NETWORK, viewModel.uiState.value.profileError)
         assertTrue(viewModel.uiState.value.hasError)
+        assertTrue(viewModel.uiState.value.hasDashboardError)
         assertFalse(viewModel.uiState.value.isLoading)
     }
 

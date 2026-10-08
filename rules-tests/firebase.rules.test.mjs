@@ -14,6 +14,8 @@ import {
   getDoc,
   getDocs,
   increment,
+  limit,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -351,6 +353,21 @@ test("job list queries must constrain results to active jobs or the owning emplo
   await assertSucceeds(getDocs(query(employerJobs, where("employerId", "==", employerId))));
 });
 
+test("an employer dashboard can list all own jobs but not another employer's private job list", async () => {
+  await seedFirestore();
+  await testEnvironment.withSecurityRulesDisabled(async (adminContext) => {
+    await setDoc(doc(adminContext.firestore(), "jobs", "other-job"), jobData(otherEmployerId, {
+      id: "other-job",
+      companyName: "Other Company",
+      active: false,
+    }));
+  });
+
+  const jobs = collection(context(employerId).firestore(), "jobs");
+  await assertSucceeds(getDocs(query(jobs, where("employerId", "==", employerId))));
+  await assertFails(getDocs(query(jobs, where("employerId", "==", otherEmployerId))));
+});
+
 test("legacy jobs without applicantCount can still be edited and applied to safely", async () => {
   await seedFirestore();
   await testEnvironment.withSecurityRulesDisabled(async (adminContext) => {
@@ -380,17 +397,63 @@ test("application IDs and ownership cannot be supplied for another applicant or 
   await assertFails(submitApplication(database, { employerId: otherEmployerId }));
 });
 
-test("applicants and owning employers can read applications but unrelated employers cannot", async () => {
+test("applicants and owning employers can read applications but other users cannot", async () => {
   await seedFirestore({ includeApplication: true });
   await assertSucceeds(getDoc(doc(context(seekerId).firestore(), "applications", applicationId)));
   await assertSucceeds(getDoc(doc(context(employerId).firestore(), "applications", applicationId)));
   await assertFails(getDoc(doc(context(otherEmployerId).firestore(), "applications", applicationId)));
+  await assertFails(getDoc(doc(context(secondSeekerId).firestore(), "applications", applicationId)));
+  await assertFails(getDoc(doc(
+    testEnvironment.unauthenticatedContext().firestore(),
+    "applications",
+    applicationId,
+  )));
 
   const employerQuery = query(
     collection(context(employerId).firestore(), "applications"),
     where("employerId", "==", employerId),
   );
   await assertSucceeds(getDocs(employerQuery));
+});
+
+test("recent-applicant list queries are restricted to the authenticated employer", async () => {
+  await seedFirestore({ includeApplication: true });
+  await testEnvironment.withSecurityRulesDisabled(async (adminContext) => {
+    const otherApplicationId = `other-job_${secondSeekerId}`;
+    await setDoc(
+      doc(adminContext.firestore(), "applications", otherApplicationId),
+      applicationData({
+        applicationId: otherApplicationId,
+        jobId: "other-job",
+        employerId: otherEmployerId,
+        applicantId: secondSeekerId,
+        companyName: "Other Company",
+        applicantEmail: `${secondSeekerId}@example.com`,
+      }),
+    );
+  });
+
+  const employerApplications = collection(
+    context(employerId).firestore(),
+    "applications",
+  );
+  const ownRecentApplicants = query(
+    employerApplications,
+    where("employerId", "==", employerId),
+    orderBy("submittedAt", "desc"),
+    limit(5),
+  );
+  await assertSucceeds(getDocs(ownRecentApplicants));
+  await assertFails(getDocs(query(
+    employerApplications,
+    where("employerId", "==", otherEmployerId),
+  )));
+
+  const seekerApplications = collection(context(seekerId).firestore(), "applications");
+  await assertFails(getDocs(query(
+    seekerApplications,
+    where("employerId", "==", employerId),
+  )));
 });
 
 test("only the job owner can update application status and no applicant data can change", async () => {

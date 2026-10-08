@@ -38,8 +38,14 @@ data class EmployerHomeUiState(
     val applicationsCount: Long
         get() = jobs.sumOf(Job::applicantCount)
 
+    val hasDashboardError: Boolean
+        get() = profileError != null || jobError != null
+
+    val hasRecentApplicantsError: Boolean
+        get() = applicationError != null
+
     val hasError: Boolean
-        get() = profileError != null || jobError != null || applicationError != null
+        get() = hasDashboardError || hasRecentApplicantsError
 }
 
 class EmployerHomeViewModel(
