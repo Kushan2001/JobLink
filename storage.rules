@@ -2,34 +2,48 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /users/{userId}/cv/{fileName} {
-      function isOwnerJobSeeker() {
-        return request.auth != null
-          && request.auth.uid == userId
-          && firestore.get(
-            /databases/(default)/documents/users/$(userId)
-          ).data.role == 'JOB_SEEKER';
-      }
+    function signedIn() {
+      return request.auth != null;
+    }
 
-      function hasEmployerCvAccess() {
-        let access = firestore.get(
-          /databases/(default)/documents/cvAccess/$(request.auth.uid + "_" + userId)
-        );
-        let application = firestore.get(
-          /databases/(default)/documents/applications/$(access.data.applicationId)
-        );
-        return access.data.employerId == request.auth.uid
-          && access.data.applicantId == userId
-          && application.data.employerId == request.auth.uid
-          && application.data.applicantId == userId
-          && application.data.jobId == access.data.jobId;
-      }
+    function isOwnerJobSeeker(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && firestore.get(
+          /databases/(default)/documents/users/$(userId)
+        ).data.role == 'JOB_SEEKER';
+    }
 
-      allow read: if isOwnerJobSeeker()
-        || (request.auth != null && hasEmployerCvAccess());
-      allow write: if isOwnerJobSeeker()
-        && request.resource != null
-        && request.resource.contentType == 'application/pdf';
+    function hasEmployerCvAccess(userId) {
+      let access = firestore.get(
+        /databases/(default)/documents/cvAccess/$(request.auth.uid + '_' + userId)
+      );
+      let application = firestore.get(
+        /databases/(default)/documents/applications/$(access.data.applicationId)
+      );
+      return access.data.employerId == request.auth.uid
+        && access.data.applicantId == userId
+        && application.data.applicationId == access.data.applicationId
+        && application.data.employerId == request.auth.uid
+        && application.data.applicantId == userId
+        && application.data.jobId == access.data.jobId
+        && application.data.cvReference == 'users/' + userId + '/cv/current.pdf';
+    }
+
+    match /users/{userId}/cv/current.pdf {
+      allow read: if isOwnerJobSeeker(userId)
+        || (signedIn() && hasEmployerCvAccess(userId));
+
+      allow create, update: if isOwnerJobSeeker(userId)
+        && request.resource.contentType == 'application/pdf'
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024;
+
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

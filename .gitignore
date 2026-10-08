@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+/node_modules/
+/.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
