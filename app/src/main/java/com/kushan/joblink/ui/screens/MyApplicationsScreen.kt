@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +42,7 @@ import com.kushan.joblink.data.model.ApplicationStatus
 import com.kushan.joblink.data.model.JobApplication
 import com.kushan.joblink.data.repository.ApplicationError
 import com.kushan.joblink.ui.components.ApplicationStatusBadge
+import com.kushan.joblink.ui.components.ListLoadingState
 import com.kushan.joblink.ui.components.labelResource
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.MyApplicationsUiState
@@ -272,15 +272,10 @@ private fun MyApplicationsEmpty(isFiltered: Boolean) {
 
 @Composable
 private fun MyApplicationsLoading() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
-        ) {
-            CircularProgressIndicator()
-            Text(text = stringResource(R.string.loading_applications))
-        }
-    }
+    ListLoadingState(
+        label = stringResource(R.string.loading_applications),
+        modifier = Modifier.widthIn(max = 760.dp),
+    )
 }
 
 @Composable

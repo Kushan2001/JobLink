@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +54,7 @@ import com.kushan.joblink.data.model.WorkMode
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.ui.components.JobCard
 import com.kushan.joblink.ui.components.DashboardShortcutCard
+import com.kushan.joblink.ui.components.ListLoadingState
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.HomeUiState
 import com.kushan.joblink.viewmodel.HomeViewModel
@@ -491,15 +491,10 @@ private fun JobFeed(
 
 @Composable
 private fun JobFeedLoading() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
-        ) {
-            CircularProgressIndicator()
-            Text(text = stringResource(R.string.loading_jobs))
-        }
-    }
+    ListLoadingState(
+        label = stringResource(R.string.loading_jobs),
+        modifier = Modifier.widthIn(max = 760.dp),
+    )
 }
 
 @Composable

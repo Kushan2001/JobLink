@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kushan.joblink.R
 import com.kushan.joblink.data.repository.JobError
 import com.kushan.joblink.ui.components.JobCard
+import com.kushan.joblink.ui.components.ListLoadingState
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.SavedJobsUiState
 import com.kushan.joblink.viewmodel.SavedJobsViewModel
@@ -175,15 +175,10 @@ private fun SavedJobsEmpty() {
 
 @Composable
 private fun SavedJobsLoading() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
-        ) {
-            CircularProgressIndicator()
-            Text(text = stringResource(R.string.loading_saved_jobs))
-        }
-    }
+    ListLoadingState(
+        label = stringResource(R.string.loading_saved_jobs),
+        modifier = Modifier.widthIn(max = 760.dp),
+    )
 }
 
 @Composable
