@@ -47,6 +47,7 @@ import com.kushan.joblink.R
 import com.kushan.joblink.data.model.Job
 import com.kushan.joblink.data.model.JobType
 import com.kushan.joblink.data.repository.JobError
+import com.kushan.joblink.ui.components.ListLoadingState
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.EmployerJobsUiState
 import com.kushan.joblink.viewmodel.EmployerJobsViewModel
@@ -325,15 +326,10 @@ private fun EmployerJobsEmpty() {
 
 @Composable
 private fun EmployerJobsLoading() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
-        ) {
-            CircularProgressIndicator()
-            Text(text = stringResource(R.string.loading_employer_jobs))
-        }
-    }
+    ListLoadingState(
+        label = stringResource(R.string.loading_employer_jobs),
+        modifier = Modifier.widthIn(max = 800.dp),
+    )
 }
 
 @Composable

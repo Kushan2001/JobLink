@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +34,7 @@ import com.kushan.joblink.R
 import com.kushan.joblink.data.model.JobApplication
 import com.kushan.joblink.data.repository.ApplicationError
 import com.kushan.joblink.ui.components.ApplicationStatusBadge
+import com.kushan.joblink.ui.components.ListLoadingState
 import com.kushan.joblink.ui.theme.JobLinkSpacing
 import com.kushan.joblink.viewmodel.EmployerApplicationsViewModel
 import java.text.DateFormat
@@ -83,23 +83,45 @@ fun EmployerApplicationsScreen(
                 onRefresh = viewModel::refresh,
                 modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
             ) {
-                val applications = uiState.data?.applications.orEmpty()
-                if (applications.isEmpty()) {
-                    ApplicantListEmpty()
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(JobLinkSpacing.large),
-                        verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
-                    ) {
-                        items(applications, key = { it.applicationId }) { application ->
-                            ApplicantCard(
-                                application = application,
-                                onClick = { onApplicantClick(application.applicationId) },
-                            )
-                        }
-                    }
+                ApplicantList(
+                    applications = uiState.data?.applications.orEmpty(),
+                    refreshError = uiState.error,
+                    onApplicantClick = onApplicantClick,
+                    onRetry = viewModel::refresh,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApplicantList(
+    applications: List<JobApplication>,
+    refreshError: ApplicationError?,
+    onApplicantClick: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(JobLinkSpacing.large),
+        verticalArrangement = Arrangement.spacedBy(JobLinkSpacing.medium),
+    ) {
+        refreshError?.let { error ->
+            item {
+                EmployerApplicationErrorMessage(error)
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.refresh))
                 }
+            }
+        }
+        if (applications.isEmpty()) {
+            item { ApplicantListEmpty() }
+        } else {
+            items(applications, key = { it.applicationId }) { application ->
+                ApplicantCard(
+                    application = application,
+                    onClick = { onApplicantClick(application.applicationId) },
+                )
             }
         }
     }
@@ -155,15 +177,11 @@ private fun ApplicantCard(application: JobApplication, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun ApplicantListLoading() = Box(
-    modifier = Modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center,
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        CircularProgressIndicator()
-        Spacer(Modifier.height(JobLinkSpacing.medium))
-        Text(stringResource(R.string.loading_applicants))
-    }
+internal fun ApplicantListLoading() {
+    ListLoadingState(
+        label = stringResource(R.string.loading_applicants),
+        modifier = Modifier.widthIn(max = 760.dp),
+    )
 }
 
 @Composable
