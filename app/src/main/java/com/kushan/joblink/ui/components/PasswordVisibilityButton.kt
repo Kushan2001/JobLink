@@ -25,15 +25,13 @@ fun PasswordVisibilityButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics { this.contentDescription = contentDescription },
         enabled = enabled,
     ) {
         val color = LocalContentColor.current
 
         Canvas(
-            modifier = Modifier
-                .size(24.dp)
-                .semantics { this.contentDescription = contentDescription },
+            modifier = Modifier.size(24.dp),
         ) {
             val strokeWidth = 2.dp.toPx()
             val eyePath = Path().apply {

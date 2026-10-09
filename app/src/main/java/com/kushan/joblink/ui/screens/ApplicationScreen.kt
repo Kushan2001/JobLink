@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +97,7 @@ private fun ApplicationForm(
         }
         Text(
             text = stringResource(R.string.apply_for_job),
+            modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
@@ -182,7 +184,9 @@ private fun ApplicationSuccess(
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            modifier = Modifier.widthIn(max = 560.dp),
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             shape = MaterialTheme.shapes.large,
@@ -194,6 +198,7 @@ private fun ApplicationSuccess(
             ) {
                 Text(
                     text = stringResource(R.string.application_submitted_title),
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
